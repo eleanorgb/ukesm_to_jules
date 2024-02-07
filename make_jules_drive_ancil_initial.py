@@ -2,6 +2,7 @@ import glob
 import iris
 import numpy as np
 import jules
+import os
 from functions_um_to_jules import extract_constraint
 from functions_um_to_jules import sort_by_month_year_key
 from functions_um_to_jules import rename_cubes
@@ -9,6 +10,7 @@ from functions_um_to_jules import make_output_file_name
 from functions_um_to_jules import sortout_initial_cs_and_ns
 from functions_um_to_jules import sortout_initial_sth
 from functions_um_to_jules import rename_and_delete_dimensions
+from functions_um_to_jules import REGION_DICT
 import um_to_jules_stash_dict
 
 L_USE_ROSE = False
@@ -16,8 +18,8 @@ L_USE_ROSE = False
 if not L_USE_ROSE:
     STREAM = "a.pk"
     RUNID = "dc429"
-    PWDIN = "/scratch/hadea/um_to_jules/data/"
-    PWDOUT = "/scratch/hadea/um_to_jules/" + RUNID + "/"
+    PWDIN = "/scratch/hadea/um_to_jules/"
+    PWDOUT = "/scratch/hadea/um_to_jules/u-" + RUNID + "/"
     REGION_TO_EXTRACT = None  # "noAntarctica"  # "nhlat" "noAntarctica" None
     DUMPNAME = "cz700a.da20990101_00"
 
@@ -98,25 +100,46 @@ STASHINIT = [
     "m01s00i386",
 ]
 
+STASHPRESOUT = ["m01s19i111", "m01s00i252"]
 
 DICT_STASH = um_to_jules_stash_dict.get_jules_stash_dict()
 
-# check if region to extract is in dictionary
+# check if region to extract is in dictionary here
 
 region_and_stash_cons = extract_constraint(STASHDRIVE, REGION_TO_EXTRACT)
 
 
 # ##############################################################################
+def make_prescribed_from_output():
+    stream = "a.pm"
+    search_pattern = f"{PWDIN}u-{RUNID}/{stream}/{RUNID}{stream}*.pp"
+    print("files searched: ", search_pattern)
+    files = glob.glob(search_pattern)
+    sorted_files = sorted(files, key=sort_by_month_year_key)
+    print(sorted_files)
+    region_and_stash_cons = extract_constraint(STASHPRESOUT, REGION_TO_EXTRACT)
+    cubelist = iris.load(sorted_files, region_and_stash_cons)
+    cubelist = rename_cubes(DICT_STASH, cubelist)
+    print(cubelist)
+    for cube in cubelist:
+        print(cube.var_name)
+        iris.save(
+            cube,
+            f"{PWDOUT}/ancils/{RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_{cube.var_name}.nc",
+        )
+    return
+
+
+# ##############################################################################
 def make_driving():
-    search_pattern = f"{PWDIN}{RUNID}/{STREAM}/{RUNID}{STREAM}*.pp"
+    search_pattern = f"{PWDIN}u-{RUNID}/{STREAM}/{RUNID}{STREAM}*.pp"
     print("files searched: ", search_pattern)
     files = glob.glob(search_pattern)
     sorted_files = sorted(files, key=sort_by_month_year_key)
 
-    for input_filename in sorted_files[0:121]:
+    for input_filename in sorted_files[0:12]:
         print("~~~")
-        cubelist_met = iris.load(input_filename)
-        cubelist_met = cubelist_met.extract(region_and_stash_cons)
+        cubelist_met = iris.load(input_filename, region_and_stash_cons)
         cubelist_met = rename_cubes(DICT_STASH, cubelist_met)
         # for cube in cubelist_met:
         #    print(cube.long_name)
@@ -135,12 +158,13 @@ def make_topmodel(cubelist_dump):
     cubelist_top = rename_cubes(DICT_STASH, cubelist_top)
     iris.save(
         cubelist_top,
-        PWDOUT + "ancils/" + RUNID + "_" + REGION_TO_EXTRACT + "_topmodel.nc",
+        f"{PWDOUT}/ancils/{RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_topmodel.nc",
     )
     print(cubelist_top)
     return
 
 
+# ##############################################################################
 def make_soil(cubelist_dump):
     """make soil ancillaries"""
     region_and_stash_cons = extract_constraint(STASHSOIL, REGION_TO_EXTRACT)
@@ -148,12 +172,13 @@ def make_soil(cubelist_dump):
     cubelist_soil = rename_cubes(DICT_STASH, cubelist_soil)
     iris.save(
         cubelist_soil,
-        PWDOUT + "ancils/" + RUNID + "_" + REGION_TO_EXTRACT + "_soilprops.nc",
+        f"{PWDOUT}/ancils/{RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_soilprops.nc",
     )
     print(cubelist_soil)
     return
 
 
+# ##############################################################################
 def make_rivers(cubelist_dump):
     """make rivers ancillaries - not working yet"""
     region_and_stash_cons = extract_constraint(STASHRIVERS, REGION_TO_EXTRACT)
@@ -161,12 +186,13 @@ def make_rivers(cubelist_dump):
     cubelist_rivers = rename_cubes(DICT_STASH, cubelist_rivers)
     iris.save(
         cubelist_rivers,
-        PWDOUT + "ancils/" + RUNID + "_" + REGION_TO_EXTRACT + "_rivers.nc",
+        f"{PWDOUT}/ancils/{RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_rivers.nc",
     )
     print(cubelist_rivers)
     return
 
 
+# ##############################################################################
 def make_model_height(cubelist_dump):
     """find  height of lowest model level - use stash 004
     https://www-avd/nbviewer/MetOffice/file_/home/h01/hadtq/lib/ipy/model_level_height.ipynb
@@ -189,11 +215,13 @@ def make_model_height(cubelist_dump):
         - cube_theta1.coord("surface_altitude").points
     )
     iris.save(
-        cube_height, PWDOUT + "ancils/" + RUNID + "_" + REGION_TO_EXTRACT + "_height.nc"
+        cube_height,
+        f"{PWDOUT}/ancils/{RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_height.nc",
     )
     return
 
 
+# ##############################################################################
 def make_model_grid(cubelist_dump):
     """get model grid
     something wrong with grid area"""
@@ -229,11 +257,12 @@ def make_model_grid(cubelist_dump):
 
     iris.save(
         cubelist_grid,
-        PWDOUT + "ancils/" + RUNID + "_" + REGION_TO_EXTRACT + "_model_grid.nc",
+        f"{PWDOUT}/ancils/{RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_model_grid.nc",
     )
     return lsmask
 
 
+# ##############################################################################
 def make_initial_conditions(cubelist_dump, lsmask):
     region_and_stash_cons = extract_constraint(STASHINIT, REGION_TO_EXTRACT)
     cubelist_init = cubelist_dump.extract(region_and_stash_cons)
@@ -251,17 +280,28 @@ def make_initial_conditions(cubelist_dump, lsmask):
 
     jules.save(
         cubelist_init,
-        PWDOUT + "dump/" + RUNID + "_" + REGION_TO_EXTRACT + "_dump.nc",
+        f"{PWDOUT}/dump/{RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_dump.nc",
         lsmask=lsmask,
         landpointsonly=True,
     )
     return
 
 
+# ##############################################################################
+# ##############################################################################
 if __name__ == "__main__":
+
+    if not os.path.exists(PWDOUT):
+        os.makedirs(PWDOUT)
+    for subdir in ["ancils","dump","drive"]:
+        if not os.path.exists(f"{PWDOUT}/{subdir}"):
+            os.makedirs(f"{PWDOUT}/{subdir}")
+
+    make_prescribed_from_output()
+   
     make_driving()
 
-    cubelist_dump = iris.load(PWDIN + RUNID + "/dump/" + DUMPNAME)
+    cubelist_dump = iris.load(f"{PWDIN}u-{RUNID}/a.da/{DUMPNAME}")
     make_topmodel(cubelist_dump)
     make_rivers(cubelist_dump)
     make_soil(cubelist_dump)
