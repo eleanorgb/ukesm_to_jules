@@ -101,6 +101,8 @@ STASHINIT = [
 
 DICT_STASH = um_to_jules_stash_dict.get_jules_stash_dict()
 
+# check if region to extract is in dictionary
+
 region_and_stash_cons = extract_constraint(STASHDRIVE, REGION_TO_EXTRACT)
 
 

@@ -1,6 +1,20 @@
 """ fucntions for extracting um data"""
 import iris
 import os
+import iris.coords as icoords
+
+REGION_DICT = {
+    None: {"string": "global", "constraint": None},
+    "noAntarctica": {
+        "string": "noAntarctica",
+        "constraint": iris.Constraint(latitude=lambda v: -58.0 <= v <= 85.0),
+    },
+    "nhlat": {
+        "string": "nhlat",
+        "constraint": iris.Constraint(latitude=lambda v: 55.0 <= v <= 85.0),
+    },
+}
+
 
 def sort_by_month_year_key(filename):
     """sort driving data by year then month"""
@@ -32,13 +46,7 @@ def sort_by_month_year_key(filename):
 def extract_constraint(stash, REGION_TO_EXTRACT):
     """define constraint for files"""
     stash_cons = iris.Constraint(cube_func=lambda x: x.attributes["STASH"] in stash)
-    if region != None:
-        region_and_stash_cons = region.copy()
-        region_and_stash_cons = (
-            region_and_stash_cons[REGION_TO_EXTRACT]["constraint"] & stash_cons
-        )
-    else:
-        region_and_stash_cons = stash_cons
+    region_and_stash_cons = REGION_DICT[REGION_TO_EXTRACT]["constraint"] & stash_cons
     return region_and_stash_cons
 
 
@@ -57,12 +65,12 @@ def stash_string_to_integer(stash_string=None):
 
 
 # ############################################################
-def make_output_file_name(input_filename, REGION_TO_EXTRACT):
+def make_output_file_name(input_filename, REGION_TO_EXTRACT, PWDOUT):
     output_filename = (
         PWDOUT + "drive/" + os.path.splitext(os.path.basename(input_filename))[0]
     )
-    if region != None:
-        output_filename += "_" + region[REGION_TO_EXTRACT]["string"] + ".nc"
+    if REGION_DICT[REGION_TO_EXTRACT]["string"] != None:
+        output_filename += "_" + REGION_DICT[REGION_TO_EXTRACT]["string"] + ".nc"
     else:
         output_filename += ".nc"
     return output_filename
@@ -85,4 +93,76 @@ def rename_cubes(DICT_STASH, cubelist):
     if len(set(name_list)) != len(name_list):
         print(name_list)
         raise Exception("check this case: may need to do some merging/concatenating")
+    return cubelist
+
+
+# ############################################################
+def sortout_initial_cs_and_ns(pool_name, cubelist):
+    """sort out cpools and npools"""
+    cubelist_pools = iris.cube.CubeList([])
+    for cube in cubelist:
+        if cube.long_name.startswith(pool_name + "_"):
+            if "dpm" in cube.long_name:
+                ipool = 1
+            elif "rpm" in cube.long_name:
+                ipool = 2
+            elif "bio" in cube.long_name:
+                ipool = 3
+            elif "hum" in cube.long_name:
+                ipool = 4
+            poolcoord = icoords.DimCoord(ipool, long_name="scpool", units=None)
+            # add new dimenson to cube
+            cube = iris.util.new_axis(cube)
+            cube.var_name = pool_name
+            cube.long_name = pool_name
+            cube.add_dim_coord(poolcoord, 0)
+            cubelist_pools.append(cube)
+    iris.util.equalise_attributes(cubelist_pools)
+    # print(cubelist_pools)
+    cube = cubelist_pools.concatenate_cube()
+    return cube
+
+
+# ############################################################
+def sortout_initial_sth(cubelist):
+    """sort out soil moisture"""
+    cubelist_sthuf = cubelist.extract(
+        iris.Constraint(
+            cube_func=lambda x: x.attributes["STASH"] in ["m01s00i214", "m01s00i215"]
+        )
+    )
+    if len(cubelist_sthuf) != 2:
+        raise ValueError("need 2 cubes here but dont have that")
+    cube = cubelist_sthuf[0] + cubelist_sthuf[1]
+    cube.var_name = "sthuf"
+    cube.long_name = "sthuf"
+    return cube
+
+
+# ############################################################
+def rename_and_delete_dimensions(cubelist, l_remove_time=False):
+    """sort out dimensions"""
+    for cube in cubelist:
+        all_coord_names = [coord.name() for coord in cube.coords()]
+        if "realization" in all_coord_names:
+            cube.remove_coord("realization")
+        if l_remove_time:
+            if "time" in all_coord_names:
+                cube.remove_coord("time")
+        if "pseudo_level" in all_coord_names:
+            if len(cube.coord("pseudo_level").points) == 1:
+                cube.remove_coord("pseudo_level")
+        if "depth" in all_coord_names:
+            cube.coord("depth").rename("soil")
+        if "snow" in cube.var_name and "pseudo_level" in all_coord_names:
+            cube.coord("pseudo_level").rename("tile")
+        if "lai" in cube.var_name and "pseudo_level" in all_coord_names:
+            cube.coord("pseudo_level").rename("pft")
+        if "canht" in cube.var_name and "pseudo_level" in all_coord_names:
+            cube.coord("pseudo_level").rename("pft")
+        # rest of cubes with pseudo in
+    for cube in cubelist:
+        all_coord_names = [coord.name() for coord in cube.coords()]
+        if "pseudo_level" in all_coord_names:
+            cube.coord("pseudo_level").rename("tile")
     return cubelist
