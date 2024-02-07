@@ -1,9 +1,10 @@
 def get_jules_stash_dict():
     DICT_STASH = {
-        "m01s00i627": {"name": "pop_den", "units": "/km2"},
+        "m01s00i627": {"name": "pop_den", "units": "1/km2"},
         "m01s00i252": {"name": "co2_mmr", "units": None},
         "m01s19i111": {"name": "deposition_n", "units": "kg/m2/s"},
-        "m01s21i097": {"name": "flash_rate", "units": "/km2"},
+        "m01s21i097": {"name": "flash_rate", "units": "1/km2"},
+        "m01s50i082": {"name": "flash_rate", "units": "1/km2"},
         "m01s00i448": {"name": "frac_agr", "units": None},
         "m01s00i458": {"name": "frac_past", "units": None},
         "m01s00i449": {"name": "frac_agr_prev", "units": None},
@@ -78,4 +79,4 @@ def get_jules_stash_dict():
         "m01s00i384": {"name": "tsnow", "units": ""},
         "m01s00i386": {"name": "rgrainl", "units": ""},
     }
-    return(DICT_STASH)
+    return DICT_STASH

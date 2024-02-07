@@ -20,7 +20,7 @@ if not L_USE_ROSE:
     RUNID = "dc429"
     PWDIN = "/scratch/hadea/um_to_jules/"
     PWDOUT = "/scratch/hadea/um_to_jules/u-" + RUNID + "/"
-    REGION_TO_EXTRACT = None  # "noAntarctica"  # "nhlat" "noAntarctica" None
+    REGION_TO_EXTRACT = "noAntarctica"  # "nhlat" "noAntarctica" None
     DUMPNAME = "cz700a.da20990101_00"
 
 
@@ -59,6 +59,8 @@ STASHOROG = ["m01s00i004", "m01s00i033"]
 STASHGRID = ["m01s00i505", "m01s00i157", "m01s00i030"]
 
 STASHRIVERS = ["m01s00i151", "m01s00i152", "m01s00i153"]
+
+STASHLIGHTNING = ["m01s50i082", "m01s21i097"]
 
 STASHINIT = [
     "m01s00i442",
@@ -107,6 +109,24 @@ DICT_STASH = um_to_jules_stash_dict.get_jules_stash_dict()
 # check if region to extract is in dictionary here
 
 region_and_stash_cons = extract_constraint(STASHDRIVE, REGION_TO_EXTRACT)
+
+
+# ##############################################################################
+def make_prescribed_from_input(um_ancillary_filename):
+    cubelist = iris.load(um_ancillary_filename)
+    stashlist = []
+    for cube in cubelist:
+        stashlist.append(str(cube.attributes["STASH"]))
+    region_and_stash_cons = extract_constraint(stashlist, REGION_TO_EXTRACT)
+    cubelist = cubelist.extract(region_and_stash_cons)
+    cubelist = rename_cubes(DICT_STASH, cubelist)
+    for cube in cubelist:
+        print(cube.var_name)
+        iris.save(
+            cube,
+            f"{PWDOUT}/ancils/{RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_{cube.var_name}.nc",
+        )
+    return
 
 
 # ##############################################################################
@@ -193,6 +213,64 @@ def make_rivers(cubelist_dump):
 
 
 # ##############################################################################
+def make_c2g_lightning(lat2d):
+    """
+    Gets lightning for input to jules
+    if 21097 is available use that WE THINK
+    but if not use 50082, only need conversion for 50082
+         Converts total flashes (#50082) to cloud-to-ground for INFERNO
+    """
+
+    stream = "a.pm"
+    search_pattern = f"{PWDIN}u-{RUNID}/{stream}/{RUNID}{stream}*.pp"
+    print("files searched: ", search_pattern)
+    files = glob.glob(search_pattern)
+    sorted_files = sorted(files, key=sort_by_month_year_key)
+    print(sorted_files)
+    region_and_stash_cons = extract_constraint(STASHLIGHTNING, REGION_TO_EXTRACT)
+    cubelist = iris.load(sorted_files, region_and_stash_cons)
+    stashlist = []
+    for cube in cubelist:
+        stashlist.append(str(cube.attributes["STASH"]))
+    if "m01s21i097" in stashlist:
+        print("use this one")
+        cube = cubelist.extract(
+            iris.Constraint(cube_func=lambda x: x.attributes["STASH"] in ["m01s21i097"])
+        )
+    elif "m01s50i082" in stashlist:
+        cube = cubelist.extract_cube(
+            iris.Constraint(cube_func=lambda x: x.attributes["STASH"] in ["m01s50i082"])
+        )
+
+        # Conversion code taken from UM vn 12.0 src/atmosphere/UKCA/ukca_light.F90
+        adh = (
+            -6.64e-05 * (np.absolute(lat2d.data) ** 2)
+            - 4.73e-03 * np.absolute(lat2d.data)
+            + 7.34
+        )
+        az = (
+            0.021 * (adh**4)
+            - 0.648 * (adh**3)
+            + 7.493 * (adh**2)
+            - 36.54 * adh
+            + 63.09
+        )
+        ap = 1.0 / (1.0 + az)
+        cube.data = cube.data * ap
+    else:
+        print("no lightning data available in files given")
+        return
+    cube = rename_cubes(DICT_STASH, cube)
+    cube = cube / 30.0  # convert month to day?
+
+    iris.save(
+        cube,
+        f"{PWDOUT}/ancils/{RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_flash_rate.nc",
+    )
+    return
+
+
+# ##############################################################################
 def make_model_height(cubelist_dump):
     """find  height of lowest model level - use stash 004
     https://www-avd/nbviewer/MetOffice/file_/home/h01/hadtq/lib/ipy/model_level_height.ipynb
@@ -259,7 +337,7 @@ def make_model_grid(cubelist_dump):
         cubelist_grid,
         f"{PWDOUT}/ancils/{RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_model_grid.nc",
     )
-    return lsmask
+    return lsmask, lat2d
 
 
 # ##############################################################################
@@ -290,15 +368,19 @@ def make_initial_conditions(cubelist_dump, lsmask):
 # ##############################################################################
 # ##############################################################################
 if __name__ == "__main__":
-
     if not os.path.exists(PWDOUT):
         os.makedirs(PWDOUT)
-    for subdir in ["ancils","dump","drive"]:
+    for subdir in ["ancils", "dump", "drive"]:
         if not os.path.exists(f"{PWDOUT}/{subdir}"):
             os.makedirs(f"{PWDOUT}/{subdir}")
 
+    # need to get these filenames from somewhere else and need for population
+    # pwdancil = "/hpc/projects/ancils/cmip6/ancils/n96e/timeseries_1850-2014/LandUse/v3/"
+    # fileancil = "multiple_input4MIPs_landState_CMIP_UofMD-landState-2-1-h_gn_0850-2015_states.nc_1848_2015_crop_frac_noRange_n96e_orca1_ancil"
+    # make_prescribed_from_input(pwdancil + fileancil)
+
     make_prescribed_from_output()
-   
+
     make_driving()
 
     cubelist_dump = iris.load(f"{PWDIN}u-{RUNID}/a.da/{DUMPNAME}")
@@ -306,5 +388,7 @@ if __name__ == "__main__":
     make_rivers(cubelist_dump)
     make_soil(cubelist_dump)
     make_model_height(cubelist_dump)
-    lsmask = make_model_grid(cubelist_dump)
+    lsmask, lat2d = make_model_grid(cubelist_dump)
+    # lat2d = iris.load_cube("/scratch/hadea/um_to_jules/dc429/ancils/dc429_noAntarctica_model_grid.nc","lat2d")
+    make_c2g_lightning(lat2d)
     make_initial_conditions(cubelist_dump, lsmask)

@@ -79,20 +79,33 @@ def make_output_file_name(input_filename, REGION_TO_EXTRACT, PWDOUT):
 # ############################################################
 def rename_cubes(DICT_STASH, cubelist):
     """this removes standard names may or may not be a good thing"""
-    for cube in cubelist:
-        if "STASH" in cube.attributes.keys():
-            stash_int = stash_string_to_integer(str(cube.attributes["STASH"]))
-        cube.long_name = (
-            DICT_STASH[str(cube.attributes["STASH"])]["name"] + "_" + str(stash_int)
-        )
-        cube.units = DICT_STASH[str(cube.attributes["STASH"])]["units"]
-        cube.standard_name = None
-        cube.var_name = cube.long_name
+    if cubelist.__class__.__name__ == "list":
+        for cube in cubelist:
+            if "STASH" in cube.attributes.keys():
+                stash_int = stash_string_to_integer(str(cube.attributes["STASH"]))
+            cube.long_name = (
+                DICT_STASH[str(cube.attributes["STASH"])]["name"] + "_" + str(stash_int)
+            )
+            cube.units = DICT_STASH[str(cube.attributes["STASH"])]["units"]
+            cube.standard_name = None
+            cube.var_name = cube.long_name
 
-    name_list = [cube.name() for cube in cubelist]
-    if len(set(name_list)) != len(name_list):
-        print(name_list)
-        raise Exception("check this case: may need to do some merging/concatenating")
+        name_list = [cube.name() for cube in cubelist]
+        if len(set(name_list)) != len(name_list):
+            print(name_list)
+            raise Exception(
+                "check this case: may need to do some merging/concatenating"
+            )
+    else:
+        if "STASH" in cubelist.attributes.keys():
+            stash_int = stash_string_to_integer(str(cubelist.attributes["STASH"]))
+        cubelist.long_name = (
+            DICT_STASH[str(cubelist.attributes["STASH"])]["name"] + "_" + str(stash_int)
+        )
+        cubelist.units = DICT_STASH[str(cubelist.attributes["STASH"])]["units"]
+        cubelist.standard_name = None
+        cubelist.var_name = cubelist.long_name
+
     return cubelist
 
 
