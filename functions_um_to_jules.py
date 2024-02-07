@@ -79,7 +79,7 @@ def make_output_file_name(input_filename, REGION_TO_EXTRACT, PWDOUT):
 # ############################################################
 def rename_cubes(DICT_STASH, cubelist):
     """this removes standard names may or may not be a good thing"""
-    if cubelist.__class__.__name__ == "list":
+    if isinstance(cubelist, iris.cube.CubeList):
         for cube in cubelist:
             if "STASH" in cube.attributes.keys():
                 stash_int = stash_string_to_integer(str(cube.attributes["STASH"]))

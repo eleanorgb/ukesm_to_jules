@@ -1,3 +1,4 @@
+import sys
 import glob
 import iris
 import numpy as np
@@ -13,15 +14,13 @@ from functions_um_to_jules import rename_and_delete_dimensions
 from functions_um_to_jules import REGION_DICT
 import um_to_jules_stash_dict
 
-L_USE_ROSE = False
+L_USE_ROSE = True
 
 if not L_USE_ROSE:
-    STREAM = "a.pk"
-    RUNID = "dc429"
-    PWDIN = "/scratch/hadea/um_to_jules/"
-    PWDOUT = "/scratch/hadea/um_to_jules/u-" + RUNID + "/"
+    UM_RUNID = "dc429"
+    PWDUSE = "/scratch/hadea/um_to_jules/"
     REGION_TO_EXTRACT = "noAntarctica"  # "nhlat" "noAntarctica" None
-    DUMPNAME = "cz700a.da20990101_00"
+    UM_DUMPFILENAME = "cz700a.da20990101_00"
 
 
 STASHDRIVE = [
@@ -108,7 +107,29 @@ DICT_STASH = um_to_jules_stash_dict.get_jules_stash_dict()
 
 # check if region to extract is in dictionary here
 
-region_and_stash_cons = extract_constraint(STASHDRIVE, REGION_TO_EXTRACT)
+
+def read_parameters_from_rose():
+    # Define parameter names
+    parameter_names = ["UM_RUNID", "PWDUSE", "REGION_TO_EXTRACT", "UM_DUMPFILENAME"]
+
+    # Check if correct number of arguments is provided
+    if len(sys.argv) != len(parameter_names) + 1:  # +1 to account for script name
+        print(f"Usage: python {sys.argv[0]} {' '.join(parameter_names)}")
+        sys.exit(1)
+
+    # Extract parameter values from command-line arguments
+    parameters_dict = dict(zip(parameter_names, sys.argv[1:]))
+
+    # Access parameters
+    for key, value in parameters_dict.items():
+        print(f"{key}: {value}")
+
+    UM_RUNID = parameters_dict["UM_RUNID"]
+    PWDUSE = parameters_dict["PWDUSE"]
+    REGION_TO_EXTRACT = parameters_dict["REGION_TO_EXTRACT"]
+    UM_DUMPFILENAME = parameters_dict["UM_DUMPFILENAME"]
+
+    return UM_RUNID, PWDUSE, REGION_TO_EXTRACT, UM_DUMPFILENAME
 
 
 # ##############################################################################
@@ -119,12 +140,13 @@ def make_prescribed_from_input(um_ancillary_filename):
         stashlist.append(str(cube.attributes["STASH"]))
     region_and_stash_cons = extract_constraint(stashlist, REGION_TO_EXTRACT)
     cubelist = cubelist.extract(region_and_stash_cons)
+    print(cubelist)
     cubelist = rename_cubes(DICT_STASH, cubelist)
     for cube in cubelist:
         print(cube.var_name)
         iris.save(
             cube,
-            f"{PWDOUT}/ancils/{RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_{cube.var_name}.nc",
+            f"{PWDUSE}/u-{UM_RUNID}/ancils/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_{cube.var_name}.nc",
         )
     return
 
@@ -132,30 +154,35 @@ def make_prescribed_from_input(um_ancillary_filename):
 # ##############################################################################
 def make_prescribed_from_output():
     stream = "a.pm"
-    search_pattern = f"{PWDIN}u-{RUNID}/{stream}/{RUNID}{stream}*.pp"
+    search_pattern = f"{PWDUSE}/u-{UM_RUNID}/{stream}/{UM_RUNID}{stream}*.pp"
     print("files searched: ", search_pattern)
     files = glob.glob(search_pattern)
     sorted_files = sorted(files, key=sort_by_month_year_key)
     print(sorted_files)
     region_and_stash_cons = extract_constraint(STASHPRESOUT, REGION_TO_EXTRACT)
     cubelist = iris.load(sorted_files, region_and_stash_cons)
+    print(cubelist)
     cubelist = rename_cubes(DICT_STASH, cubelist)
     print(cubelist)
     for cube in cubelist:
         print(cube.var_name)
         iris.save(
             cube,
-            f"{PWDOUT}/ancils/{RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_{cube.var_name}.nc",
+            f"{PWDUSE}/u-{UM_RUNID}/ancils/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_{cube.var_name}.nc",
         )
     return
 
 
 # ##############################################################################
 def make_driving():
-    search_pattern = f"{PWDIN}u-{RUNID}/{STREAM}/{RUNID}{STREAM}*.pp"
+    """make the driving data rom high temproal resolution"""
+    stream = "a.pk"
+    search_pattern = f"{PWDUSE}/u-{UM_RUNID}/{stream}/{UM_RUNID}{stream}*.pp"
     print("files searched: ", search_pattern)
     files = glob.glob(search_pattern)
     sorted_files = sorted(files, key=sort_by_month_year_key)
+
+    region_and_stash_cons = extract_constraint(STASHDRIVE, REGION_TO_EXTRACT)
 
     for input_filename in sorted_files[0:12]:
         print("~~~")
@@ -164,7 +191,7 @@ def make_driving():
         # for cube in cubelist_met:
         #    print(cube.long_name)
         output_filename = make_output_file_name(
-            input_filename, REGION_TO_EXTRACT, PWDOUT
+            input_filename, REGION_TO_EXTRACT, PWDUSE
         )
         iris.save(cubelist_met, output_filename)
         print(output_filename)
@@ -178,7 +205,7 @@ def make_topmodel(cubelist_dump):
     cubelist_top = rename_cubes(DICT_STASH, cubelist_top)
     iris.save(
         cubelist_top,
-        f"{PWDOUT}/ancils/{RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_topmodel.nc",
+        f"{PWDUSE}/u-{UM_RUNID}/ancils/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_topmodel.nc",
     )
     print(cubelist_top)
     return
@@ -192,7 +219,7 @@ def make_soil(cubelist_dump):
     cubelist_soil = rename_cubes(DICT_STASH, cubelist_soil)
     iris.save(
         cubelist_soil,
-        f"{PWDOUT}/ancils/{RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_soilprops.nc",
+        f"{PWDUSE}/u-{UM_RUNID}/ancils/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_soilprops.nc",
     )
     print(cubelist_soil)
     return
@@ -206,7 +233,7 @@ def make_rivers(cubelist_dump):
     cubelist_rivers = rename_cubes(DICT_STASH, cubelist_rivers)
     iris.save(
         cubelist_rivers,
-        f"{PWDOUT}/ancils/{RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_rivers.nc",
+        f"{PWDUSE}/u-{UM_RUNID}/ancils/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_rivers.nc",
     )
     print(cubelist_rivers)
     return
@@ -222,7 +249,7 @@ def make_c2g_lightning(lat2d):
     """
 
     stream = "a.pm"
-    search_pattern = f"{PWDIN}u-{RUNID}/{stream}/{RUNID}{stream}*.pp"
+    search_pattern = f"{PWDUSE}/u-{UM_RUNID}/{stream}/{UM_RUNID}{stream}*.pp"
     print("files searched: ", search_pattern)
     files = glob.glob(search_pattern)
     sorted_files = sorted(files, key=sort_by_month_year_key)
@@ -265,7 +292,7 @@ def make_c2g_lightning(lat2d):
 
     iris.save(
         cube,
-        f"{PWDOUT}/ancils/{RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_flash_rate.nc",
+        f"{PWDUSE}/u-{UM_RUNID}/ancils/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_flash_rate.nc",
     )
     return
 
@@ -294,7 +321,7 @@ def make_model_height(cubelist_dump):
     )
     iris.save(
         cube_height,
-        f"{PWDOUT}/ancils/{RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_height.nc",
+        f"{PWDUSE}/u-{UM_RUNID}/ancils/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_height.nc",
     )
     return
 
@@ -335,7 +362,7 @@ def make_model_grid(cubelist_dump):
 
     iris.save(
         cubelist_grid,
-        f"{PWDOUT}/ancils/{RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_model_grid.nc",
+        f"{PWDUSE}/u-{UM_RUNID}/ancils/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_model_grid.nc",
     )
     return lsmask, lat2d
 
@@ -358,7 +385,7 @@ def make_initial_conditions(cubelist_dump, lsmask):
 
     jules.save(
         cubelist_init,
-        f"{PWDOUT}/dump/{RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_dump.nc",
+        f"{PWDUSE}/u-{UM_RUNID}/dump/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_dump.nc",
         lsmask=lsmask,
         landpointsonly=True,
     )
@@ -368,22 +395,31 @@ def make_initial_conditions(cubelist_dump, lsmask):
 # ##############################################################################
 # ##############################################################################
 if __name__ == "__main__":
-    if not os.path.exists(PWDOUT):
-        os.makedirs(PWDOUT)
+    if L_USE_ROSE:
+        # python make_jules_drive_ancil_initial.py dc429 /scratch/hadea/um_to_jules noAntarctica cz700a.da20990101_00
+        (
+            UM_RUNID,
+            PWDUSE,
+            REGION_TO_EXTRACT,
+            UM_DUMPFILENAME,
+        ) = read_parameters_from_rose()
+
+    if not os.path.exists(f"{PWDUSE}/u-{UM_RUNID}"):
+        os.makedirs(f"{PWDUSE}/u-{UM_RUNID}")
     for subdir in ["ancils", "dump", "drive"]:
-        if not os.path.exists(f"{PWDOUT}/{subdir}"):
-            os.makedirs(f"{PWDOUT}/{subdir}")
+        if not os.path.exists(f"{PWDUSE}/u-{UM_RUNID}/{subdir}"):
+            os.makedirs(f"{PWDUSE}/u-{UM_RUNID}/{subdir}")
 
     # need to get these filenames from somewhere else and need for population
-    # pwdancil = "/hpc/projects/ancils/cmip6/ancils/n96e/timeseries_1850-2014/LandUse/v3/"
-    # fileancil = "multiple_input4MIPs_landState_CMIP_UofMD-landState-2-1-h_gn_0850-2015_states.nc_1848_2015_crop_frac_noRange_n96e_orca1_ancil"
-    # make_prescribed_from_input(pwdancil + fileancil)
+    pwdancil = "/hpc/projects/ancils/cmip6/ancils/n96e/timeseries_1850-2014/LandUse/v3/"
+    fileancil = "multiple_input4MIPs_landState_CMIP_UofMD-landState-2-1-h_gn_0850-2015_states.nc_1848_2015_crop_frac_noRange_n96e_orca1_ancil"
+    make_prescribed_from_input(pwdancil + fileancil)
 
     make_prescribed_from_output()
 
     make_driving()
 
-    cubelist_dump = iris.load(f"{PWDIN}u-{RUNID}/a.da/{DUMPNAME}")
+    cubelist_dump = iris.load(f"{PWDUSE}/u-{UM_RUNID}/a.da/{UM_DUMPFILENAME}")
     make_topmodel(cubelist_dump)
     make_rivers(cubelist_dump)
     make_soil(cubelist_dump)
