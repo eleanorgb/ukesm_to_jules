@@ -65,9 +65,13 @@ def stash_string_to_integer(stash_string=None):
 
 
 # ############################################################
-def make_output_file_name(input_filename, REGION_TO_EXTRACT, PWDOUT):
+def make_output_file_name(input_filename, REGION_TO_EXTRACT, PWDOUT, UM_RUNID):
     output_filename = (
-        PWDOUT + "drive/" + os.path.splitext(os.path.basename(input_filename))[0]
+        PWDOUT
+        + "/u-"
+        + UM_RUNID
+        + "/drive/"
+        + os.path.splitext(os.path.basename(input_filename))[0]
     )
     if REGION_DICT[REGION_TO_EXTRACT]["string"] != None:
         output_filename += "_" + REGION_DICT[REGION_TO_EXTRACT]["string"] + ".nc"

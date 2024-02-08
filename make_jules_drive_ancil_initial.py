@@ -14,7 +14,7 @@ from functions_um_to_jules import rename_and_delete_dimensions
 from functions_um_to_jules import REGION_DICT
 import um_to_jules_stash_dict
 
-L_USE_ROSE = True
+L_USE_ROSE = False
 
 if not L_USE_ROSE:
     UM_RUNID = "dc429"
@@ -35,6 +35,7 @@ STASHDRIVE = [
     "m01s05i206",
     "m01s05i216",
     "m01s05i215",  # pr not all available
+    "m01s05i214",  # pr not all available
     "m01s03i230",  # wind
     "m01s01i231",  # diffuse frac
 ]
@@ -191,7 +192,7 @@ def make_driving():
         # for cube in cubelist_met:
         #    print(cube.long_name)
         output_filename = make_output_file_name(
-            input_filename, REGION_TO_EXTRACT, PWDUSE
+            input_filename, REGION_TO_EXTRACT, PWDUSE, UM_RUNID
         )
         iris.save(cubelist_met, output_filename)
         print(output_filename)
@@ -411,7 +412,7 @@ if __name__ == "__main__":
             os.makedirs(f"{PWDUSE}/u-{UM_RUNID}/{subdir}")
 
     # need to get these filenames from somewhere else and need for population
-    pwdancil = "/projects/ancils/cmip6/ancils/n96e/timeseries_1850-2014/LandUse/v3/"
+    pwdancil = "/hpc/projects/ancils/cmip6/ancils/n96e/timeseries_1850-2014/LandUse/v3/"
     fileancil = "multiple_input4MIPs_landState_CMIP_UofMD-landState-2-1-h_gn_0850-2015_states.nc_1848_2015_crop_frac_noRange_n96e_orca1_ancil"
     make_prescribed_from_input(pwdancil + fileancil)
 
