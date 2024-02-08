@@ -175,7 +175,7 @@ def make_prescribed_from_output():
 
 # ##############################################################################
 def make_driving():
-    """make the driving data rom high temproal resolution"""
+    """make the driving data from high temproal resolution"""
     stream = "a.pk"
     search_pattern = f"{PWDUSE}/u-{UM_RUNID}/{stream}/{UM_RUNID}{stream}*.pp"
     print("files searched: ", search_pattern)
@@ -411,7 +411,7 @@ if __name__ == "__main__":
             os.makedirs(f"{PWDUSE}/u-{UM_RUNID}/{subdir}")
 
     # need to get these filenames from somewhere else and need for population
-    pwdancil = "/hpc/projects/ancils/cmip6/ancils/n96e/timeseries_1850-2014/LandUse/v3/"
+    pwdancil = "/projects/ancils/cmip6/ancils/n96e/timeseries_1850-2014/LandUse/v3/"
     fileancil = "multiple_input4MIPs_landState_CMIP_UofMD-landState-2-1-h_gn_0850-2015_states.nc_1848_2015_crop_frac_noRange_n96e_orca1_ancil"
     make_prescribed_from_input(pwdancil + fileancil)
 
