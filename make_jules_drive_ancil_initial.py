@@ -90,7 +90,8 @@ STASHINIT = [
     "m01s00i218",
     "m01s03i462",
     "m01s00i213",
-    "m01s02i31",
+    "m01s00i231",
+    "m01s00i576",
     "m01s00i377",
     "m01s00i376",
     "m01s00i242",
@@ -131,6 +132,36 @@ def read_parameters_from_rose():
     UM_DUMPFILENAME = parameters_dict["UM_DUMPFILENAME"]
 
     return UM_RUNID, PWDUSE, REGION_TO_EXTRACT, UM_DUMPFILENAME
+
+
+# ##############################################################################
+def sortout_snow(snow_cube, nsnow, ntiles):
+    """"""
+    cube = iris.cube.Cube(
+        np.zeros(
+            (
+                nsnow,
+                ntiles,
+                snow_cube.coord("latitude").shape[0],
+                snow_cube.coord("longitude").shape[0],
+            )
+        ),
+        var_name=snow_cube.var_name,
+        units=snow_cube.units,
+        dim_coords_and_dims=[
+            (iris.coords.DimCoord(np.arange(0, nsnow), long_name="snow"), 0),
+            (iris.coords.DimCoord(np.arange(0, ntiles), long_name="tile"), 1),
+            (snow_cube.coord("latitude"), 2),
+            (snow_cube.coord("longitude"), 3),
+        ],
+    )
+    for ijk in np.arange(0, ntiles):
+        cube.data[0:nsnow, ijk, :, :] = snow_cube.data[
+            (0 + nsnow * ijk) : (nsnow + nsnow * ijk), :, :
+        ]
+    for attr_name, attr_value in snow_cube.attributes.items():
+        cube.attributes[attr_name] = attr_value
+    return cube
 
 
 # ##############################################################################
@@ -176,7 +207,7 @@ def make_prescribed_from_output():
 
 # ##############################################################################
 def make_driving():
-    """make the driving data from high temproal resolution"""
+    """make the driving data from high temporal resolution"""
     stream = "a.pk"
     search_pattern = f"{PWDUSE}/u-{UM_RUNID}/{stream}/{UM_RUNID}{stream}*.pp"
     print("files searched: ", search_pattern)
@@ -377,10 +408,28 @@ def make_initial_conditions(cubelist_dump, lsmask):
     # sort out soil moisture
     cube = sortout_initial_sth(cubelist_init)
     cubelist_init.append(cube)
+
     # sort out cpools and npools
     for pool_name in ["ns", "cs"]:
         cube = sortout_initial_cs_and_ns(pool_name, cubelist_init)
         cubelist_init.append(cube)
+
+    # sort out layered snow
+    cube_frac = cubelist_dump.extract_cube(
+        extract_constraint(["m01s00i216"], REGION_TO_EXTRACT)
+    )
+    ntiles = cube_frac.coord("pseudo_level").shape[0]
+    cubelist_tmp = iris.cube.CubeList([])
+    for cube in cubelist_init:
+        all_coord_names = [coord.name() for coord in cube.coords()]
+        if "pseudo_level" in all_coord_names:
+            if cube.coord("pseudo_level").shape[0] > ntiles:
+                cube = sortout_snow(cube, ntiles)
+                cubelist_tmp.append(cube)
+            else:
+                cubelist_tmp.append(cube)
+    cubelist_init = cubelist_tmp.copy()
+
     l_remove_time = True
     cubelist_init = rename_and_delete_dimensions(cubelist_init, l_remove_time)
 
