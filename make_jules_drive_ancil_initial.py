@@ -14,7 +14,7 @@ from functions_um_to_jules import rename_and_delete_dimensions
 from functions_um_to_jules import REGION_DICT
 import um_to_jules_stash_dict
 
-L_USE_ROSE = False
+L_USE_ROSE = True
 
 if not L_USE_ROSE:
     UM_RUNID = "dc429"
