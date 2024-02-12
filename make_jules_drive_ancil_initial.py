@@ -104,6 +104,7 @@ STASHINIT = [
     "m01s00i383",
     "m01s00i384",
     "m01s00i386",
+    "m01s00i418",
 ]
 
 STASHPRESOUT = ["m01s19i111", "m01s00i252"]
@@ -392,7 +393,7 @@ def make_initial_conditions(cubelist_dump, lsmask):
     # sort out n_inorg only worked for non layered cs
     cubelist_tmp = iris.cube.CubeList([])
     for cube in cubelist_init:
-        if cube.long_name.startswith("n_inorg_"):
+        if cube.long_name.startswith("n_inorg_") or cube.long_name.startswith("clay_"):
             cube = iris.util.new_axis(cube)
             sclayer_coord = icoords.DimCoord(1, long_name="sclayer", units=None)
             cube.add_dim_coord(sclayer_coord, 0)
@@ -427,6 +428,7 @@ def make_initial_conditions(cubelist_dump, lsmask):
         f"{PWDUSE}/u-{UM_RUNID}/dump/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_dump.nc",
         lsmask=lsmask,
         landpointsonly=True,
+        lsmask_missingdata_str="zeros",
     )
     iris.save(
         cubelist_init,
