@@ -2,6 +2,7 @@ def get_jules_stash_dict():
     DICT_STASH = {
         "m01s00i627": {"name": "pop_den", "units": "1/km2"},
         "m01s00i252": {"name": "co2_mmr", "units": None},
+        "m01s00i447": {"name": "deposition_n", "units": "kg/m2/s"},
         "m01s19i111": {"name": "deposition_n", "units": "kg/m2/s"},
         "m01s21i097": {"name": "flash_rate", "units": "1/km2"},
         "m01s50i082": {"name": "flash_rate", "units": "1/km2"},
