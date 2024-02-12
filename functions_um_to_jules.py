@@ -4,7 +4,7 @@ import os
 import iris.coords as icoords
 
 REGION_DICT = {
-    None: {"string": "global", "constraint": None},
+    "global": {"string": "global", "constraint": None},
     "noAntarctica": {
         "string": "noAntarctica",
         "constraint": iris.Constraint(latitude=lambda v: -58.0 <= v <= 85.0),
@@ -113,9 +113,39 @@ def rename_cubes(DICT_STASH, cubelist):
     return cubelist
 
 
+# ##############################################################################
+def sortout_initial_snow(snow_cube, nsnow, tile_coord):
+    """"""
+    cube = iris.cube.Cube(
+        np.zeros(
+            (
+                nsnow,
+                tile_coord.shape[0],
+                snow_cube.coord("latitude").shape[0],
+                snow_cube.coord("longitude").shape[0],
+            )
+        ),
+        var_name=snow_cube.var_name,
+        units=snow_cube.units,
+        dim_coords_and_dims=[
+            (iris.coords.DimCoord(np.arange(0, nsnow), long_name="snow"), 0),
+            (tile_coord, 1),
+            (snow_cube.coord("latitude"), 2),
+            (snow_cube.coord("longitude"), 3),
+        ],
+    )
+    for ijk in np.arange(0, tile_coord.shape[0]):
+        cube.data[0:nsnow, ijk, :, :] = snow_cube.data[
+            (0 + nsnow * ijk) : (nsnow + nsnow * ijk), :, :
+        ]
+    for attr_name, attr_value in snow_cube.attributes.items():
+        cube.attributes[attr_name] = attr_value
+    return cube
+
+
 # ############################################################
 def sortout_initial_cs_and_ns(pool_name, cubelist):
-    """sort out cpools and npools"""
+    """sort out cpools and npools only works for 1 layer currently"""
     cubelist_pools = iris.cube.CubeList([])
     for cube in cubelist:
         if cube.long_name.startswith(pool_name + "_"):
@@ -127,16 +157,22 @@ def sortout_initial_cs_and_ns(pool_name, cubelist):
                 ipool = 3
             elif "hum" in cube.long_name:
                 ipool = 4
-            poolcoord = icoords.DimCoord(ipool, long_name="scpool", units=None)
+            pool_coord = icoords.DimCoord(ipool, long_name="scpool", units=None)
             # add new dimenson to cube
             cube = iris.util.new_axis(cube)
             cube.var_name = pool_name
             cube.long_name = pool_name
-            cube.add_dim_coord(poolcoord, 0)
+            cube.add_dim_coord(pool_coord, 0)
             cubelist_pools.append(cube)
     iris.util.equalise_attributes(cubelist_pools)
     # print(cubelist_pools)
     cube = cubelist_pools.concatenate_cube()
+    # add sclayer coordinate
+    cube = iris.util.new_axis(cube)
+    sclayer_coord = icoords.DimCoord(1, long_name="sclayer", units=None)
+    cube.add_dim_coord(sclayer_coord, 0)
+    cube.transpose([1,0,2,3])
+
     return cube
 
 

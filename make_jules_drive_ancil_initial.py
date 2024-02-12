@@ -10,6 +10,7 @@ from functions_um_to_jules import rename_cubes
 from functions_um_to_jules import make_output_file_name
 from functions_um_to_jules import sortout_initial_cs_and_ns
 from functions_um_to_jules import sortout_initial_sth
+from functions_um_to_jules import sortout_initial_snow
 from functions_um_to_jules import rename_and_delete_dimensions
 from functions_um_to_jules import REGION_DICT
 import um_to_jules_stash_dict
@@ -20,7 +21,7 @@ NSNOW = 10
 if not L_USE_ROSE:
     UM_RUNID = "dc429"
     PWDUSE = "/scratch/hadea/um_to_jules/"
-    REGION_TO_EXTRACT = "noAntarctica"  # "nhlat" "noAntarctica" None
+    REGION_TO_EXTRACT = "noAntarctica"  # "nhlat" "noAntarctica" "global"
     UM_DUMPFILENAME = "cz700a.da20990101_00"
 
 
@@ -135,36 +136,6 @@ def read_parameters_from_rose():
     UM_DUMPFILENAME = parameters_dict["UM_DUMPFILENAME"]
 
     return UM_RUNID, PWDUSE, REGION_TO_EXTRACT, UM_DUMPFILENAME
-
-
-# ##############################################################################
-def sortout_snow(snow_cube, nsnow, tile_coord):
-    """"""
-    cube = iris.cube.Cube(
-        np.zeros(
-            (
-                nsnow,
-                tile_coord.shape[0],
-                snow_cube.coord("latitude").shape[0],
-                snow_cube.coord("longitude").shape[0],
-            )
-        ),
-        var_name=snow_cube.var_name,
-        units=snow_cube.units,
-        dim_coords_and_dims=[
-            (iris.coords.DimCoord(np.arange(0, nsnow), long_name="snow"), 0),
-            (tile_coord, 1),
-            (snow_cube.coord("latitude"), 2),
-            (snow_cube.coord("longitude"), 3),
-        ],
-    )
-    for ijk in np.arange(0, tile_coord.shape[0]):
-        cube.data[0:nsnow, ijk, :, :] = snow_cube.data[
-            (0 + nsnow * ijk) : (nsnow + nsnow * ijk), :, :
-        ]
-    for attr_name, attr_value in snow_cube.attributes.items():
-        cube.attributes[attr_name] = attr_value
-    return cube
 
 
 # ##############################################################################
@@ -427,7 +398,9 @@ def make_initial_conditions(cubelist_dump, lsmask):
         all_coord_names = [coord.name() for coord in cube.coords()]
         if "pseudo_level" in all_coord_names:
             if cube.coord("pseudo_level").shape[0] > ntiles:
-                cube = sortout_snow(cube, NSNOW, cube_frac.coord("pseudo_level"))
+                cube = sortout_initial_snow(
+                    cube, NSNOW, cube_frac.coord("pseudo_level")
+                )
                 cubelist_tmp.append(cube)
             else:
                 cubelist_tmp.append(cube)
@@ -444,7 +417,8 @@ def make_initial_conditions(cubelist_dump, lsmask):
     )
     iris.save(
         cubelist_init,
-        f"{PWDUSE}/u-{UM_RUNID}/dump/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_latlon.nc")
+        f"{PWDUSE}/u-{UM_RUNID}/dump/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_latlon.nc",
+    )
     return
 
 
@@ -471,7 +445,9 @@ if __name__ == "__main__":
     if os.path.isfile(ANCIL_PATHS) and os.path.getsize(ANCIL_PATHS) > 0:
         with open(ANCIL_PATHS, "r") as file:
             for filename in file:
-                filename = filename.strip()  # Remove leading/trailing whitespace and newlines
+                filename = (
+                    filename.strip()
+                )  # Remove leading/trailing whitespace and newlines
                 make_prescribed_from_input(filename)
 
     make_prescribed_from_output()
