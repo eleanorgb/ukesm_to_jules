@@ -1,6 +1,7 @@
 """ fucntions for extracting um data"""
 import iris
 import os
+import numpy as np
 import iris.coords as icoords
 
 REGION_DICT = {
