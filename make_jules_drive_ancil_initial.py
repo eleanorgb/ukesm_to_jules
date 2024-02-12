@@ -427,7 +427,7 @@ def make_initial_conditions(cubelist_dump, lsmask):
         all_coord_names = [coord.name() for coord in cube.coords()]
         if "pseudo_level" in all_coord_names:
             if cube.coord("pseudo_level").shape[0] > ntiles:
-                cube = sortout_snow(cube, NSNOW, cube.coord("pseudo_level"))
+                cube = sortout_snow(cube, NSNOW, cube_frac.coord("pseudo_level"))
                 cubelist_tmp.append(cube)
             else:
                 cubelist_tmp.append(cube)
