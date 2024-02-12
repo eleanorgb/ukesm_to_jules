@@ -4,6 +4,7 @@ import iris
 import numpy as np
 import jules
 import os
+import iris.coords as icoords
 from functions_um_to_jules import extract_constraint
 from functions_um_to_jules import sort_by_month_year_key
 from functions_um_to_jules import rename_cubes
@@ -387,6 +388,18 @@ def make_initial_conditions(cubelist_dump, lsmask):
     for pool_name in ["ns", "cs"]:
         cube = sortout_initial_cs_and_ns(pool_name, cubelist_init)
         cubelist_init.append(cube)
+
+    # sort out n_inorg only worked for non layered cs
+    cubelist_tmp = iris.cube.CubeList([])
+    for cube in cubelist_init:
+        if cube.long_name.startswith("n_inorg_"):
+            cube = iris.util.new_axis(cube)
+            sclayer_coord = icoords.DimCoord(1, long_name="sclayer", units=None)
+            cube.add_dim_coord(sclayer_coord, 0)
+            cubelist_tmp.append(cube)
+        else:
+            cubelist_tmp.append(cube)
+    cubelist_init = cubelist_tmp.copy()
 
     # sort out layered snow
     cube_frac = cubelist_dump.extract_cube(

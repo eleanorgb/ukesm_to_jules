@@ -172,7 +172,7 @@ def sortout_initial_cs_and_ns(pool_name, cubelist):
     cube = iris.util.new_axis(cube)
     sclayer_coord = icoords.DimCoord(1, long_name="sclayer", units=None)
     cube.add_dim_coord(sclayer_coord, 0)
-    cube.transpose([1,0,2,3])
+    cube.transpose([1, 0, 2, 3])
 
     return cube
 
