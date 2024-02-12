@@ -15,6 +15,7 @@ from functions_um_to_jules import REGION_DICT
 import um_to_jules_stash_dict
 
 L_USE_ROSE = True
+NSNOW = 10
 
 if not L_USE_ROSE:
     UM_RUNID = "dc429"
@@ -107,6 +108,8 @@ STASHPRESOUT = ["m01s19i111", "m01s00i252"]
 
 DICT_STASH = um_to_jules_stash_dict.get_jules_stash_dict()
 
+ANCIL_PATHS = "ancilpaths.dat"
+
 # check if region to extract is in dictionary here
 
 
@@ -135,13 +138,13 @@ def read_parameters_from_rose():
 
 
 # ##############################################################################
-def sortout_snow(snow_cube, nsnow, ntiles):
+def sortout_snow(snow_cube, nsnow, tile_coord):
     """"""
     cube = iris.cube.Cube(
         np.zeros(
             (
                 nsnow,
-                ntiles,
+                tile_coord.shape[0],
                 snow_cube.coord("latitude").shape[0],
                 snow_cube.coord("longitude").shape[0],
             )
@@ -150,12 +153,12 @@ def sortout_snow(snow_cube, nsnow, ntiles):
         units=snow_cube.units,
         dim_coords_and_dims=[
             (iris.coords.DimCoord(np.arange(0, nsnow), long_name="snow"), 0),
-            (iris.coords.DimCoord(np.arange(0, ntiles), long_name="tile"), 1),
+            (tile_coord, 1),
             (snow_cube.coord("latitude"), 2),
             (snow_cube.coord("longitude"), 3),
         ],
     )
-    for ijk in np.arange(0, ntiles):
+    for ijk in np.arange(0, tile_coord.shape[0]):
         cube.data[0:nsnow, ijk, :, :] = snow_cube.data[
             (0 + nsnow * ijk) : (nsnow + nsnow * ijk), :, :
         ]
@@ -424,7 +427,7 @@ def make_initial_conditions(cubelist_dump, lsmask):
         all_coord_names = [coord.name() for coord in cube.coords()]
         if "pseudo_level" in all_coord_names:
             if cube.coord("pseudo_level").shape[0] > ntiles:
-                cube = sortout_snow(cube, ntiles)
+                cube = sortout_snow(cube, NSNOW, cube.coord("pseudo_level"))
                 cubelist_tmp.append(cube)
             else:
                 cubelist_tmp.append(cube)
@@ -445,6 +448,7 @@ def make_initial_conditions(cubelist_dump, lsmask):
 # ##############################################################################
 # ##############################################################################
 if __name__ == "__main__":
+    """run main routine"""
     if L_USE_ROSE:
         # python make_jules_drive_ancil_initial.py dc429 /scratch/hadea/um_to_jules noAntarctica cz700a.da20990101_00
         (
@@ -461,9 +465,11 @@ if __name__ == "__main__":
             os.makedirs(f"{PWDUSE}/u-{UM_RUNID}/{subdir}")
 
     # need to get these filenames from somewhere else and need for population
-    pwdancil = "/hpc/projects/ancils/cmip6/ancils/n96e/timeseries_1850-2014/LandUse/v3/"
-    fileancil = "multiple_input4MIPs_landState_CMIP_UofMD-landState-2-1-h_gn_0850-2015_states.nc_1848_2015_crop_frac_noRange_n96e_orca1_ancil"
-    make_prescribed_from_input(pwdancil + fileancil)
+    if os.path.isfile(ANCIL_PATHS) and os.path.getsize(ANCIL_PATHS) > 0:
+        with open(ANCIL_PATHS, "r") as file:
+            for filename in file:
+                filename = filename.strip()  # Remove leading/trailing whitespace and newlines
+                make_prescribed_from_input(filename)
 
     make_prescribed_from_output()
 
