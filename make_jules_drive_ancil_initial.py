@@ -442,6 +442,9 @@ def make_initial_conditions(cubelist_dump, lsmask):
         lsmask=lsmask,
         landpointsonly=True,
     )
+    iris.save(
+        cubelist_init,
+        f"{PWDUSE}/u-{UM_RUNID}/dump/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_latlon.nc")
     return
 
 
