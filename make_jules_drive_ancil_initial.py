@@ -111,7 +111,7 @@ STASHPRESOUT = ["m01s19i111", "m01s00i252"]
 
 DICT_STASH = um_to_jules_stash_dict.get_jules_stash_dict()
 
-ANCIL_PATHS = "ancilpaths.dat"
+FILE_WITH_ANCIL_PATHS = "ancilpaths.dat"
 
 # check if region to extract is in dictionary here
 
@@ -261,7 +261,7 @@ def make_c2g_lightning(lat2d):
     print("files searched: ", search_pattern)
     files = glob.glob(search_pattern)
     sorted_files = sorted(files, key=sort_by_month_year_key)
-    print(sorted_files)
+    # print(sorted_files)
     region_and_stash_cons = extract_constraint(STASHLIGHTNING, REGION_TO_EXTRACT)
     cubelist = iris.load(sorted_files, region_and_stash_cons)
     stashlist = []
@@ -296,11 +296,11 @@ def make_c2g_lightning(lat2d):
         print("no lightning data available in files given")
         return
     cube = rename_cubes(DICT_STASH, cube)
-    cube = cube / 30.0  # convert month to day?
+    cube.data = cube.data / 30.0  # convert month to day?
 
     iris.save(
         cube,
-        f"{PWDUSE}/u-{UM_RUNID}/ancils/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_flash_rate.nc",
+        f"{PWDUSE}/u-{UM_RUNID}/ancils/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_{cube.var_name}.nc",
     )
     return
 
@@ -371,10 +371,9 @@ def make_model_grid(cubelist_dump):
     cubelist_tmp = iris.cube.CubeList([])
     for cube in cubelist_grid:
         if np.ma.is_masked(cube.data):
-            cube.data[cube.data.mask]=0.0
+            cube.data[cube.data.mask] = 0.0
         cubelist_tmp.append(cube)
     cubelist_grid = cubelist_tmp.copy()
-
 
     iris.save(
         cubelist_grid,
@@ -465,13 +464,20 @@ if __name__ == "__main__":
             os.makedirs(f"{PWDUSE}/u-{UM_RUNID}/{subdir}")
 
     # need to get these filenames from somewhere else and need for population
-    if os.path.isfile(ANCIL_PATHS) and os.path.getsize(ANCIL_PATHS) > 0:
-        with open(ANCIL_PATHS, "r") as file:
+    if (
+        os.path.isfile(FILE_WITH_ANCIL_PATHS)
+        and os.path.getsize(FILE_WITH_ANCIL_PATHS) > 0
+    ):
+        with open(FILE_WITH_ANCIL_PATHS, "r") as file:
             for filename in file:
                 filename = (
                     filename.strip()
                 )  # Remove leading/trailing whitespace and newlines
                 make_prescribed_from_input(filename)
+    else:
+        print("Expecting file ancilpaths.dat in current directory")
+        print("It either doesnt exist or has no filenames")
+        print("There are no prescribed datasets derived from UM input data")
 
     make_prescribed_from_output()
 
