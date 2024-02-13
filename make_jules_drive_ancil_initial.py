@@ -368,6 +368,14 @@ def make_model_grid(cubelist_dump):
     lon2d.standard_name = None
     cubelist_grid.append(lon2d)
 
+    cubelist_tmp = iris.cube.CubeList([])
+    for cube in cubelist_grid:
+        if np.ma.is_masked(cube.data):
+            cube.data[cube.data.mask]=0.0
+        cubelist_tmp.append(cube)
+    cubelist_grid = cubelist_tmp.copy()
+
+
     iris.save(
         cubelist_grid,
         f"{PWDUSE}/u-{UM_RUNID}/ancils/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_model_grid.nc",
