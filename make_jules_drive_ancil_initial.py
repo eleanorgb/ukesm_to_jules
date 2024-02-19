@@ -24,7 +24,9 @@ if not L_USE_ROSE:
     PWDUSE = "/scratch/hadea/um_to_jules/"
     REGION_TO_EXTRACT = "noAntarctica"  # "nhlat" "noAntarctica" "global"
     UM_DUMPFILENAME = "cz700a.da20990101_00"
-
+    START_YEAR = 1
+    END_YEAR = 1
+    MAKE_INIT_ANCIL = True
 
 STASHDRIVE = [
     "m01s00i010",
@@ -116,28 +118,69 @@ FILE_WITH_ANCIL_PATHS = "ancilpaths.dat"
 # check if region to extract is in dictionary here
 
 
+# ##############################################################################
 def read_parameters_from_rose():
     # Define parameter names
-    parameter_names = ["UM_RUNID", "PWDUSE", "REGION_TO_EXTRACT", "UM_DUMPFILENAME"]
+    parameter_names = [
+        "UM_RUNID",
+        "PWDUSE",
+        "REGION_TO_EXTRACT",
+        "UM_DUMPFILENAME",
+        "START_YEAR",
+        "END_YEAR",
+        "MAKE_INIT_ANCIL",
+    ]
 
     # Check if correct number of arguments is provided
-    if len(sys.argv) != len(parameter_names) + 1:  # +1 to account for script name
-        print(f"Usage: python {sys.argv[0]} {' '.join(parameter_names)}")
+    if len(sys.argv) not in np.arange(
+        len(parameter_names) - 2,
+        len(parameter_names) + 2,
+    ):  # +1 to account for script name
+        print(
+            f"Usage: python {sys.argv[0]} {' '.join(parameter_names)} [START_YEAR] [END_YEAR] [MAKE_INIT_ANCIL]"
+        )
         sys.exit(1)
 
-    # Extract parameter values from command-line arguments
-    parameters_dict = dict(zip(parameter_names, sys.argv[1:]))
-
-    # Access parameters
-    for key, value in parameters_dict.items():
-        print(f"{key}: {value}")
+    parameters_dict = {}
+    for arg in sys.argv[1:]:
+        key, value = arg.split("=")
+        parameters_dict[key.strip()] = value.strip()
 
     UM_RUNID = parameters_dict["UM_RUNID"]
     PWDUSE = parameters_dict["PWDUSE"]
     REGION_TO_EXTRACT = parameters_dict["REGION_TO_EXTRACT"]
     UM_DUMPFILENAME = parameters_dict["UM_DUMPFILENAME"]
+    START_YEAR = parameters_dict.get("START_YEAR", 1)
+    END_YEAR = parameters_dict.get("END_YEAR", 1)
+    MAKE_INIT_ANCIL_str = parameters_dict.get(
+        "MAKE_INIT_ANCIL", "True"
+    )  # Default to "True" if not provided
 
-    return UM_RUNID, PWDUSE, REGION_TO_EXTRACT, UM_DUMPFILENAME
+    MAKE_INIT_ANCIL = MAKE_INIT_ANCIL_str.lower() in ["true", "t", "yes", "y"]
+    # Check if MAKE_INIT_ANCIL is a boolean
+    if not isinstance(MAKE_INIT_ANCIL, bool):
+        print("MAKE_INIT_ANCIL must be either True or False.")
+        sys.exit(1)
+
+    if (START_YEAR == 1 and END_YEAR != 1) or (START_YEAR != 1 and END_YEAR == 1):
+        print(
+            "START_YEAR and END_YEAR must either both be 1 or both be valid model years."
+        )
+        sys.exit(1)
+
+    if END_YEAR < START_YEAR:
+        print("END_YEAR must be greater than START_YEAR.")
+        sys.exit(1)
+
+    return (
+        UM_RUNID,
+        PWDUSE,
+        REGION_TO_EXTRACT,
+        UM_DUMPFILENAME,
+        START_YEAR,
+        END_YEAR,
+        MAKE_INIT_ANCIL,
+    )
 
 
 # ##############################################################################
@@ -174,6 +217,11 @@ def make_prescribed_from_output():
     print(cubelist)
     for cube in cubelist:
         print(cube.var_name)
+        # co2_mmr must have the same value everywhere
+        if cube.var_name in ["co2_mmr_252"]:
+            cube_global = cube.collapsed(["latitude", "longitude"], iris.analysis.MEAN)
+            print(cube_global.data[:])
+            cube.data[:, :, :] = cube_global.data[:, np.newaxis, np.newaxis]
         iris.save(
             cube,
             f"{PWDUSE}/u-{UM_RUNID}/ancils/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_{cube.var_name}.nc",
@@ -182,17 +230,22 @@ def make_prescribed_from_output():
 
 
 # ##############################################################################
-def make_driving():
+def make_driving(year):
     """make the driving data from high temporal resolution"""
     stream = "a.pk"
-    search_pattern = f"{PWDUSE}/u-{UM_RUNID}/{stream}/{UM_RUNID}{stream}*.pp"
+    if year > 1:
+        search_pattern = (
+            f"{PWDUSE}/u-{UM_RUNID}/{stream}/{UM_RUNID}{stream}{str(year)}*.pp"
+        )
+    else:
+        search_pattern = f"{PWDUSE}/u-{UM_RUNID}/{stream}/{UM_RUNID}{stream}*.pp"
     print("files searched: ", search_pattern)
     files = glob.glob(search_pattern)
     sorted_files = sorted(files, key=sort_by_month_year_key)
 
     region_and_stash_cons = extract_constraint(STASHDRIVE, REGION_TO_EXTRACT)
 
-    for input_filename in sorted_files[0:12]:
+    for input_filename in sorted_files:
         print("~~~")
         cubelist_met = iris.load(input_filename, region_and_stash_cons)
         cubelist_met = rename_cubes(DICT_STASH, cubelist_met)
@@ -448,14 +501,28 @@ def make_initial_conditions(cubelist_dump, lsmask):
 # ##############################################################################
 if __name__ == "__main__":
     """run main routine"""
+
     if L_USE_ROSE:
-        # python make_jules_drive_ancil_initial.py dc429 /scratch/hadea/um_to_jules noAntarctica cz700a.da20990101_00
+        # python make_jules_drive_ancil_initial.py UM_RUNID=dc429 PWDUSE=/scratch/hadea/um_to_jules REGION_TO_EXTRACT=noAntarctica UM_DUMPFILENAMEcz700a.da20990101_00
         (
             UM_RUNID,
             PWDUSE,
             REGION_TO_EXTRACT,
             UM_DUMPFILENAME,
+            START_YEAR,
+            END_YEAR,
+            MAKE_INIT_ANCIL,
         ) = read_parameters_from_rose()
+
+    print("# #####################################################")
+    print("UM_RUNID = " + UM_RUNID)
+    print("PWDUSE = " + PWDUSE)
+    print("REGION_TO_EXTRACT = " + REGION_TO_EXTRACT)
+    print("UM_DUMPFILENAME = " + UM_DUMPFILENAME)
+    print("START_YEAR = " + str(START_YEAR) + " (NB. 1 is all years)")
+    print("END_YEAR = " + str(END_YEAR) + " (NB. 1 is all years)")
+    print("MAKE_INIT_ANCIL = " + str(MAKE_INIT_ANCIL))
+    print("# #####################################################")
 
     if not os.path.exists(f"{PWDUSE}/u-{UM_RUNID}"):
         os.makedirs(f"{PWDUSE}/u-{UM_RUNID}")
@@ -463,32 +530,35 @@ if __name__ == "__main__":
         if not os.path.exists(f"{PWDUSE}/u-{UM_RUNID}/{subdir}"):
             os.makedirs(f"{PWDUSE}/u-{UM_RUNID}/{subdir}")
 
-    # need to get these filenames from somewhere else and need for population
-    if (
-        os.path.isfile(FILE_WITH_ANCIL_PATHS)
-        and os.path.getsize(FILE_WITH_ANCIL_PATHS) > 0
-    ):
-        with open(FILE_WITH_ANCIL_PATHS, "r") as file:
-            for filename in file:
-                filename = (
-                    filename.strip()
-                )  # Remove leading/trailing whitespace and newlines
-                make_prescribed_from_input(filename)
-    else:
-        print("Expecting file ancilpaths.dat in current directory")
-        print("It either doesnt exist or has no filenames")
-        print("There are no prescribed datasets derived from UM input data")
+    for year in range(int(START_YEAR), int(END_YEAR) + 1):
+        make_driving(year)
 
-    make_prescribed_from_output()
+    if MAKE_INIT_ANCIL:
+        # need to get these filenames from somewhere else and need for population
+        if (
+            os.path.isfile(FILE_WITH_ANCIL_PATHS)
+            and os.path.getsize(FILE_WITH_ANCIL_PATHS) > 0
+        ):
+            with open(FILE_WITH_ANCIL_PATHS, "r") as file:
+                for filename in file:
+                    filename = (
+                        filename.strip()
+                    )  # Remove leading/trailing whitespace and newlines
+                    make_prescribed_from_input(filename)
+        else:
+            print("Expecting file ancilpaths.dat in current directory")
+            print("It either doesnt exist or has no filenames")
+            print("There are no prescribed datasets derived from UM input data")
 
-    make_driving()
+        # from monthly output from UM run
+        make_prescribed_from_output()
 
-    cubelist_dump = iris.load(f"{PWDUSE}/u-{UM_RUNID}/a.da/{UM_DUMPFILENAME}")
-    make_topmodel(cubelist_dump)
-    make_rivers(cubelist_dump)
-    make_soil(cubelist_dump)
-    make_model_height(cubelist_dump)
-    lsmask, lat2d = make_model_grid(cubelist_dump)
-    # lat2d = iris.load_cube("/scratch/hadea/um_to_jules/dc429/ancils/dc429_noAntarctica_model_grid.nc","lat2d")
-    make_c2g_lightning(lat2d)
-    make_initial_conditions(cubelist_dump, lsmask)
+        cubelist_dump = iris.load(f"{PWDUSE}/u-{UM_RUNID}/a.da/{UM_DUMPFILENAME}")
+        make_topmodel(cubelist_dump)
+        make_rivers(cubelist_dump)
+        make_soil(cubelist_dump)
+        make_model_height(cubelist_dump)
+        lsmask, lat2d = make_model_grid(cubelist_dump)
+        # lat2d = iris.load_cube("/scratch/hadea/um_to_jules/dc429/ancils/dc429_noAntarctica_model_grid.nc","lat2d")
+        make_c2g_lightning(lat2d)
+        make_initial_conditions(cubelist_dump, lsmask)
