@@ -27,6 +27,7 @@ if not L_USE_ROSE:
     START_YEAR = 1
     END_YEAR = 1
     MAKE_INIT_ANCIL = True
+    MAKE_INIT_DUMP = True
 
 STASHDRIVE = [
     "m01s00i010",
@@ -129,6 +130,7 @@ def read_parameters_from_rose():
         "START_YEAR",
         "END_YEAR",
         "MAKE_INIT_ANCIL",
+        "MAKE_INIT_DUMP",
     ]
 
     # Check if correct number of arguments is provided
@@ -137,7 +139,7 @@ def read_parameters_from_rose():
         len(parameter_names) + 2,
     ):  # +1 to account for script name
         print(
-            f"Usage: python {sys.argv[0]} {' '.join(parameter_names)} [START_YEAR] [END_YEAR] [MAKE_INIT_ANCIL]"
+            f"Usage: python {sys.argv[0]} {' '.join(parameter_names)} [START_YEAR] [END_YEAR] [MAKE_INIT_ANCIL] [MAKE_INIT_DUMP]"
         )
         sys.exit(1)
 
@@ -153,13 +155,22 @@ def read_parameters_from_rose():
     START_YEAR = parameters_dict.get("START_YEAR", 1)
     END_YEAR = parameters_dict.get("END_YEAR", 1)
     MAKE_INIT_ANCIL_str = parameters_dict.get(
-        "MAKE_INIT_ANCIL", "True"
-    )  # Default to "True" if not provided
+        "MAKE_INIT_ANCIL", "False"
+    )  # Default to "False" if not provided
+    MAKE_INIT_DUMP_str = parameters_dict.get(
+        "MAKE_INIT_DUMP", "False"
+    )  # Default to "False" if not provided
 
     MAKE_INIT_ANCIL = MAKE_INIT_ANCIL_str.lower() in ["true", "t", "yes", "y"]
     # Check if MAKE_INIT_ANCIL is a boolean
     if not isinstance(MAKE_INIT_ANCIL, bool):
         print("MAKE_INIT_ANCIL must be either True or False.")
+        sys.exit(1)
+
+    MAKE_INIT_DUMP = MAKE_INIT_DUMP_str.lower() in ["true", "t", "yes", "y"]
+    # Check if MAKE_INIT_DUMP is a boolean
+    if not isinstance(MAKE_INIT_DUMP, bool):
+        print("MAKE_INIT_DUMP must be either True or False.")
         sys.exit(1)
 
     if (START_YEAR == 1 and END_YEAR != 1) or (START_YEAR != 1 and END_YEAR == 1):
@@ -180,6 +191,7 @@ def read_parameters_from_rose():
         START_YEAR,
         END_YEAR,
         MAKE_INIT_ANCIL,
+        MAKE_INIT_DUMP,
     )
 
 
@@ -512,6 +524,7 @@ if __name__ == "__main__":
             START_YEAR,
             END_YEAR,
             MAKE_INIT_ANCIL,
+            MAKE_INIT_DUMP,
         ) = read_parameters_from_rose()
 
     print("# #####################################################")
@@ -522,6 +535,7 @@ if __name__ == "__main__":
     print("START_YEAR = " + str(START_YEAR) + " (NB. 1 is all years)")
     print("END_YEAR = " + str(END_YEAR) + " (NB. 1 is all years)")
     print("MAKE_INIT_ANCIL = " + str(MAKE_INIT_ANCIL))
+    print("MAKE_INIT_DUMP = " + str(MAKE_INIT_DUMP))
     print("# #####################################################")
 
     if not os.path.exists(f"{PWDUSE}/u-{UM_RUNID}"):
@@ -530,8 +544,9 @@ if __name__ == "__main__":
         if not os.path.exists(f"{PWDUSE}/u-{UM_RUNID}/{subdir}"):
             os.makedirs(f"{PWDUSE}/u-{UM_RUNID}/{subdir}")
 
-    for year in range(int(START_YEAR), int(END_YEAR) + 1):
-        make_driving(year)
+    if not MAKE_INIT_ANCIL and not MAKE_INIT_DUMP:
+        for year in range(int(START_YEAR), int(END_YEAR) + 1):
+            make_driving(year)
 
     if MAKE_INIT_ANCIL:
         # need to get these filenames from somewhere else and need for population
@@ -553,12 +568,13 @@ if __name__ == "__main__":
         # from monthly output from UM run
         make_prescribed_from_output()
 
-        cubelist_dump = iris.load(f"{PWDUSE}/u-{UM_RUNID}/a.da/{UM_DUMPFILENAME}")
-        make_topmodel(cubelist_dump)
-        make_rivers(cubelist_dump)
-        make_soil(cubelist_dump)
-        make_model_height(cubelist_dump)
-        lsmask, lat2d = make_model_grid(cubelist_dump)
-        # lat2d = iris.load_cube("/scratch/hadea/um_to_jules/dc429/ancils/dc429_noAntarctica_model_grid.nc","lat2d")
-        make_c2g_lightning(lat2d)
-        make_initial_conditions(cubelist_dump, lsmask)
+        if MAKE_INIT_DUMP:
+            cubelist_dump = iris.load(f"{PWDUSE}/u-{UM_RUNID}/a.da/{UM_DUMPFILENAME}")
+            make_topmodel(cubelist_dump)
+            make_rivers(cubelist_dump)
+            make_soil(cubelist_dump)
+            make_model_height(cubelist_dump)
+            lsmask, lat2d = make_model_grid(cubelist_dump)
+            # lat2d = iris.load_cube("/scratch/hadea/um_to_jules/dc429/ancils/dc429_noAntarctica_model_grid.nc","lat2d")
+            make_c2g_lightning(lat2d)
+            make_initial_conditions(cubelist_dump, lsmask)
