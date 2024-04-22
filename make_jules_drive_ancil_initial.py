@@ -568,13 +568,13 @@ if __name__ == "__main__":
         # from monthly output from UM run
         make_prescribed_from_output()
 
-        if MAKE_INIT_DUMP:
-            cubelist_dump = iris.load(f"{PWDUSE}/u-{UM_RUNID}/a.da/{UM_DUMPFILENAME}")
-            make_topmodel(cubelist_dump)
-            make_rivers(cubelist_dump)
-            make_soil(cubelist_dump)
-            make_model_height(cubelist_dump)
-            lsmask, lat2d = make_model_grid(cubelist_dump)
-            # lat2d = iris.load_cube("/scratch/hadea/um_to_jules/dc429/ancils/dc429_noAntarctica_model_grid.nc","lat2d")
-            make_c2g_lightning(lat2d)
-            make_initial_conditions(cubelist_dump, lsmask)
+    if MAKE_INIT_DUMP:
+        cubelist_dump = iris.load(f"{PWDUSE}/u-{UM_RUNID}/a.da/{UM_DUMPFILENAME}")
+        make_topmodel(cubelist_dump)
+        make_rivers(cubelist_dump)
+        make_soil(cubelist_dump)
+        make_model_height(cubelist_dump)
+        lsmask, lat2d = make_model_grid(cubelist_dump)
+        # lat2d = iris.load_cube("/scratch/hadea/um_to_jules/dc429/ancils/dc429_noAntarctica_model_grid.nc","lat2d")
+        make_c2g_lightning(lat2d)
+        make_initial_conditions(cubelist_dump, lsmask)
