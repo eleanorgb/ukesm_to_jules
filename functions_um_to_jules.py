@@ -178,7 +178,7 @@ def reorder_pseudo_type(cube):
     for ijk in np.arange(0, ntypes):
         cube_tmp = cube[ijk].copy()
         cube_tmp.coord("pseudo_level").points = [
-            mapping_pseudo_type_to_type.get(cube_tmp[ijk].coord("pseudo_level").points[0])
+            mapping_pseudo_type_to_type.get(cube_tmp.coord("pseudo_level").points[0])
         ]
         cubelist.append(cube_tmp)
     cube = cubelist.merge_cube()
