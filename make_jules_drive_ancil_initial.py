@@ -13,6 +13,7 @@ from functions_um_to_jules import sortout_initial_cs_and_ns
 from functions_um_to_jules import sortout_initial_sth
 from functions_um_to_jules import sortout_initial_snow
 from functions_um_to_jules import rename_and_delete_dimensions
+from functions_um_to_jules import reorder_pseudo_type
 from functions_um_to_jules import REGION_DICT
 import um_to_jules_stash_dict
 
@@ -492,6 +493,28 @@ def make_initial_conditions(cubelist_dump, lsmask):
                 cubelist_tmp.append(cube)
     cubelist_init = cubelist_tmp.copy()
 
+    # sort out tile order for types in cube_frac
+    cubelist_tmp = iris.cube.CubeList([])
+    for cube in cubelist_init:
+        all_coord_names = [coord.name() for coord in cube.coords()]
+        if "pseudo_level" in all_coord_names:
+            if cube.coord("pseudo_level").shape[0] == ntiles:
+                cube = reorder_pseudo_type(cube)
+                cubelist_tmp.append(cube)
+            else:
+                cubelist_tmp.append(cube)
+    cubelist_init = cubelist_tmp.copy()
+
+    # sort out tile order for pft
+    cubelist_tmp = iris.cube.CubeList([])
+    for cube in cubelist_init:
+        if cube.var_name in ["canht_218", "lai_217"]:
+            cube = reorder_pseudo_type(cube)
+            cubelist_tmp.append(cube)
+        else:
+            cubelist_tmp.append(cube)
+    cubelist_init = cubelist_tmp.copy()
+
     l_remove_time = True
     cubelist_init = rename_and_delete_dimensions(cubelist_init, l_remove_time)
 
@@ -504,7 +527,7 @@ def make_initial_conditions(cubelist_dump, lsmask):
     )
     iris.save(
         cubelist_init,
-        f"{PWDUSE}/u-{UM_RUNID}/dump/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_latlon.nc",
+        f"{PWDUSE}/u-{UM_RUNID}/ancils/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_latlon.nc",
     )
     return
 

@@ -16,7 +16,65 @@ REGION_DICT = {
     },
 }
 
+# ############################################################
 
+
+# ############################################################
+def define_mapping_pseudo_type_to_type(ntypes):
+    if ntypes == 13:   # pfts only, not other types
+        mapping_pseudo_type_to_type = {
+            3: 6,
+            4: 9,
+            101: 1,
+            102: 2,
+            103: 3,
+            201: 4,
+            202: 5,
+            301: 7,
+            302: 8,
+            401: 10,
+            402: 11,
+            501: 12,
+            502: 13,
+        }
+    elif ntypes == 27:   #elevation land ice tiles
+        mapping_pseudo_type_to_type = {
+            3: 6,
+            4: 9,
+            6: 14,
+            7: 15,
+            8: 16,
+            9: 17,
+            101: 1,
+            102: 2,
+            103: 3,
+            201: 4,
+            202: 5,
+            301: 7,
+            302: 8,
+            401: 10,
+            402: 11,
+            501: 12,
+            502: 13,
+            901: 18,
+            902: 19,
+            903: 20,
+            904: 21,
+            905: 22,
+            906: 23,
+            907: 24,
+            908: 25,
+            909: 26,
+            910: 27,
+        }
+    else:
+        raise ValueError(
+            "need to define mapping_pseudo_type_to_type for " + str(ntypes)
+        )
+    return mapping_pseudo_type_to_type
+
+
+# ############################################################
 def sort_by_month_year_key(filename):
     """sort driving data by year then month"""
     parts = filename.split(".")[-2]
@@ -38,9 +96,6 @@ def sort_by_month_year_key(filename):
         "dec": 12,
     }
     return (year, month_order.get(month.lower(), 0))
-
-
-# ############################################################
 
 
 # ############################################################
@@ -112,6 +167,22 @@ def rename_cubes(DICT_STASH, cubelist):
         cubelist.var_name = cubelist.long_name
 
     return cubelist
+
+
+# ##############################################################################
+def reorder_pseudo_type(cube):
+    """"""
+    cubelist = iris.cube.CubeList([])
+    ntypes = len(cube.coord("pseudo_level").points)
+    mapping_pseudo_type_to_type = define_mapping_pseudo_type_to_type(ntypes)
+    for ijk in np.arange(0, ntypes):
+        cube_tmp = cube[ijk].copy()
+        cube_tmp.coord("pseudo_level").points = [
+            mapping_pseudo_type_to_type.get(cube[ijk].coord("pseudo_level").points[0])
+        ]
+        cubelist.append(cube_tmp)
+    cube = cubelist.merge_cube()
+    return cube
 
 
 # ##############################################################################
