@@ -518,7 +518,7 @@ def make_initial_conditions(cubelist_dump, lsmask):
     )
     iris.save(
         cubelist_init,
-        f"{PWDUSE}/u-{UM_RUNID}/ancils/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_latlon.nc",
+        f"{PWDUSE}/u-{UM_RUNID}/ancils/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_dump2d.nc",
     )
     return
 
