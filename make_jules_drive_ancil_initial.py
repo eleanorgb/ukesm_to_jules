@@ -489,16 +489,7 @@ def make_initial_conditions(cubelist_dump, lsmask):
                     cube, NSNOW, cube_frac.coord("pseudo_level")
                 )
                 cubelist_tmp.append(cube)
-            else:
-                cubelist_tmp.append(cube)
-    cubelist_init = cubelist_tmp.copy()
-
-    # sort out tile order for types in cube_frac
-    cubelist_tmp = iris.cube.CubeList([])
-    for cube in cubelist_init:
-        all_coord_names = [coord.name() for coord in cube.coords()]
-        if "pseudo_level" in all_coord_names:
-            if cube.coord("pseudo_level").shape[0] == ntiles:
+            elif cube.coord("pseudo_level").shape[0] == ntiles:
                 cube = reorder_pseudo_type(cube)
                 cubelist_tmp.append(cube)
             else:
