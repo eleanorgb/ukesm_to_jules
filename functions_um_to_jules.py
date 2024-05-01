@@ -182,9 +182,7 @@ def reorder_pseudo_type(cube):
         ]
         cubelist.append(cube_tmp)
     cube = cubelist.merge_cube()
-    all_coord_names = [ coord.name() for coord in cube.coords() ]
-    if "pseudo_type" in all_coord_names:
-        cube.coord("pseudo_type").points = cube.coord("pseudo_type").points + 1
+
     return cube
 
 
@@ -283,7 +281,7 @@ def rename_and_delete_dimensions(cubelist, l_remove_time=False):
                 all_coord_names = [coord.name() for coord in cube.coords()]
             else:
                 cube.coord("pseudo_level").points = np.arange(
-                    0, cube.coord("pseudo_level").shape[0]
+                    1, cube.coord("pseudo_level").shape[0] + 1
                 )
         if "depth" in all_coord_names:
             cube.coord("depth").rename("soil")
@@ -301,4 +299,9 @@ def rename_and_delete_dimensions(cubelist, l_remove_time=False):
         all_coord_names = [coord.name() for coord in cube.coords()]
         if "pseudo_level" in all_coord_names:
             cube.coord("pseudo_level").rename("tile")
+
+    for cube in cubelist:
+        all_coord_names = [coord.name() for coord in cube.coords()]
+        if "snow" in all_coord_names:
+            cube.coord("snow").points = cube.coord("snow").points + 1
     return cubelist
