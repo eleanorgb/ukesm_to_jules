@@ -277,6 +277,7 @@ def rename_and_delete_dimensions(cubelist, l_remove_time=False):
         if "pseudo_level" in all_coord_names:
             if len(cube.coord("pseudo_level").points) == 1:
                 cube.remove_coord("pseudo_level")
+                all_coord_names = [coord.name() for coord in cube.coords()]
             else:
                 cube.coord("pseudo_level").points = np.arange(
                     0, cube.coord("pseudo_level").shape[0]
@@ -291,7 +292,8 @@ def rename_and_delete_dimensions(cubelist, l_remove_time=False):
             cube.coord("pseudo_level").rename("pft")
         if "frac" in cube.var_name and "pseudo_level" in all_coord_names:
             cube.coord("pseudo_level").rename("type")
-        # rest of cubes with pseudo in
+
+    # rest of cubes with pseudo in
     for cube in cubelist:
         all_coord_names = [coord.name() for coord in cube.coords()]
         if "pseudo_level" in all_coord_names:
