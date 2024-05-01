@@ -21,7 +21,7 @@ REGION_DICT = {
 
 # ############################################################
 def define_mapping_pseudo_type_to_type(ntypes):
-    if ntypes == 13:   # pfts only, not other types
+    if ntypes == 13:  # pfts only, not other types
         mapping_pseudo_type_to_type = {
             3: 6,
             4: 9,
@@ -37,7 +37,7 @@ def define_mapping_pseudo_type_to_type(ntypes):
             501: 12,
             502: 13,
         }
-    elif ntypes == 27:   #elevation land ice tiles
+    elif ntypes == 27:  # elevation land ice tiles
         mapping_pseudo_type_to_type = {
             3: 6,
             4: 9,
@@ -182,6 +182,7 @@ def reorder_pseudo_type(cube):
         ]
         cubelist.append(cube_tmp)
     cube = cubelist.merge_cube()
+    cube.coord("pseudo_type").points = cube.coord("pseudo_type").points + 1
     return cube
 
 
