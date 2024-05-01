@@ -182,7 +182,9 @@ def reorder_pseudo_type(cube):
         ]
         cubelist.append(cube_tmp)
     cube = cubelist.merge_cube()
-    cube.coord("pseudo_type").points = cube.coord("pseudo_type").points + 1
+    all_coord_names = [ coord.name() for coord in cube.coords() ]
+    if "pseudo_type" in all_coord_names:
+        cube.coord("pseudo_type").points = cube.coord("pseudo_type").points + 1
     return cube
 
 
