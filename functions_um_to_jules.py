@@ -21,7 +21,27 @@ REGION_DICT = {
 
 # ############################################################
 def define_mapping_pseudo_type_to_type(ntypes):
-    if ntypes == 13:  # pfts only, not other types
+    if ntypes == 5:  # pfts only, not other types, HadGEM3 not UKESM
+        mapping_pseudo_type_to_type = {
+            1: 1,
+            2: 2,
+            3: 3,
+            4: 4,
+            5: 5,
+        }
+    elif ntypes == 9:  # vegetated and non-vegetated tiles, HadGEM3 not UKESM
+        mapping_pseudo_type_to_type = {
+            1: 1,
+            2: 2,
+            3: 3,
+            4: 4,
+            5: 5,
+            6: 6,
+            7: 7,
+            8: 8,
+            9: 9,
+        }
+    elif ntypes == 13:  # pfts only, not other types
         mapping_pseudo_type_to_type = {
             3: 6,
             4: 9,
@@ -137,15 +157,46 @@ def make_output_file_name(input_filename, REGION_TO_EXTRACT, PWDOUT, UM_RUNID):
 
 
 # ############################################################
+def calculate_diurnal_t_range(DICT_STASH, cubelist):
+    """calculate the diurnal temperature range
+       required by JULES if using the daily dissagregator 
+       with daily driving data"""
+
+    for stash in ["m01s03i236","m01s30i111"]: #possible temperature stash codes
+        stash_int = stash_string_to_integer(stash)
+        try:
+            tmin = cubelist.extract_cube(iris.Constraint(cube_func=lambda x: x.long_name == \
+                                                         DICT_STASH[stash]["name"] + "_MIN_" + str(stash_int) ))
+        except:
+            continue
+        tmax = cubelist.extract_cube(iris.Constraint(cube_func=lambda x: x.long_name == \
+                                                     DICT_STASH[stash]["name"] + "_MAX_" + str(stash_int) ))
+        dt = tmax - tmin
+        dt.long_name = DICT_STASH[stash]["name"] + "_DIURNAL_RANGE_" + str(stash_int)
+        dt.var_name = dt.long_name
+        cubelist.append(dt)
+
+    return cubelist
+
+
+# ############################################################
 def rename_cubes(DICT_STASH, cubelist):
     """this removes standard names may or may not be a good thing"""
     if isinstance(cubelist, iris.cube.CubeList):
         for cube in cubelist:
             if "STASH" in cube.attributes.keys():
                 stash_int = stash_string_to_integer(str(cube.attributes["STASH"]))
-            cube.long_name = (
-                DICT_STASH[str(cube.attributes["STASH"])]["name"] + "_" + str(stash_int)
-            )
+
+#            print(cube.cell_methods)
+#            print(len(cube.cell_methods))
+            if len(cube.cell_methods) > 0:
+                if cube.cell_methods[0].method == "minimum":
+                    cube.long_name = DICT_STASH[str(cube.attributes["STASH"])]["name"] + "_MIN_" + str(stash_int)
+                elif cube.cell_methods[0].method == "maximum":
+                    cube.long_name = DICT_STASH[str(cube.attributes["STASH"])]["name"] + "_MAX_" + str(stash_int)
+            else:
+                cube.long_name = DICT_STASH[str(cube.attributes["STASH"])]["name"] + "_" + str(stash_int)
+
             cube.units = DICT_STASH[str(cube.attributes["STASH"])]["units"]
             cube.standard_name = None
             cube.var_name = cube.long_name
@@ -237,16 +288,20 @@ def sortout_initial_cs_and_ns(pool_name, cubelist):
             cube.long_name = pool_name
             cube.add_dim_coord(pool_coord, 0)
             cubelist_pools.append(cube)
-    iris.util.equalise_attributes(cubelist_pools)
-    # print(cubelist_pools)
-    cube = cubelist_pools.concatenate_cube()
-    # add sclayer coordinate
-    cube = iris.util.new_axis(cube)
-    sclayer_coord = icoords.DimCoord(1, long_name="sclayer", units=None)
-    cube.add_dim_coord(sclayer_coord, 0)
-    cube.transpose([1, 0, 2, 3])
 
-    return cube
+    if len(cubelist_pools) == 0:
+        return None
+
+    else:
+        iris.util.equalise_attributes(cubelist_pools)
+        # print(cubelist_pools)
+        cube = cubelist_pools.concatenate_cube()
+        # add sclayer coordinate
+        cube = iris.util.new_axis(cube)
+        sclayer_coord = icoords.DimCoord(1, long_name="sclayer", units=None)
+        cube.add_dim_coord(sclayer_coord, 0)
+        cube.transpose([1, 0, 2, 3])
+        return cube
 
 
 # ############################################################

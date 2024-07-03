@@ -15,10 +15,10 @@ from functions_um_to_jules import sortout_initial_snow
 from functions_um_to_jules import rename_and_delete_dimensions
 from functions_um_to_jules import reorder_pseudo_type
 from functions_um_to_jules import REGION_DICT
+from functions_um_to_jules import calculate_diurnal_t_range
 import um_to_jules_stash_dict
 
 L_USE_ROSE = True
-NSNOW = 10
 
 if not L_USE_ROSE:
     UM_RUNID = "dc429"
@@ -45,6 +45,10 @@ STASHDRIVE = [
     "m01s05i214",  # pr not all available
     "m01s03i230",  # wind
     "m01s01i231",  # diffuse frac
+    "m01s03i236",  # t_1.5m
+    "m01s03i237",  # q_1.5m
+    "m01s00i409",  # p_sruf
+    "m01s05i214",  # rainfall
 ]
 STASHTOP = ["m01s00i274", "m01s00i275", "m01s00i276"]
 
@@ -132,6 +136,7 @@ def read_parameters_from_rose():
         "END_YEAR",
         "MAKE_INIT_ANCIL",
         "MAKE_INIT_DUMP",
+        "UM_CONFIG",
     ]
 
     # Check if correct number of arguments is provided
@@ -153,6 +158,7 @@ def read_parameters_from_rose():
     PWDUSE = parameters_dict["PWDUSE"]
     REGION_TO_EXTRACT = parameters_dict["REGION_TO_EXTRACT"]
     UM_DUMPFILENAME = parameters_dict["UM_DUMPFILENAME"]
+    UM_CONFIG = parameters_dict.get("UM_CONFIG","ukesm")
     START_YEAR = parameters_dict.get("START_YEAR", 1)
     END_YEAR = parameters_dict.get("END_YEAR", 1)
     MAKE_INIT_ANCIL_str = parameters_dict.get(
@@ -193,6 +199,7 @@ def read_parameters_from_rose():
         END_YEAR,
         MAKE_INIT_ANCIL,
         MAKE_INIT_DUMP,
+        UM_CONFIG,
     )
 
 
@@ -243,9 +250,9 @@ def make_prescribed_from_output():
 
 
 # ##############################################################################
-def make_driving(year):
+def make_driving(year, stream="a.pk", daily=False):
     """make the driving data from high temporal resolution"""
-    stream = "a.pk"
+
     if year > 1:
         search_pattern = (
             f"{PWDUSE}/u-{UM_RUNID}/{stream}/{UM_RUNID}{stream}{str(year)}*.pp"
@@ -254,7 +261,8 @@ def make_driving(year):
         search_pattern = f"{PWDUSE}/u-{UM_RUNID}/{stream}/{UM_RUNID}{stream}*.pp"
     print("files searched: ", search_pattern)
     files = glob.glob(search_pattern)
-    sorted_files = sorted(files, key=sort_by_month_year_key)
+    sorted_files = sorted(files) #, key=sort_by_month_year_key)
+    print(sorted_files)
 
     region_and_stash_cons = extract_constraint(STASHDRIVE, REGION_TO_EXTRACT)
 
@@ -262,6 +270,8 @@ def make_driving(year):
         print("~~~")
         cubelist_met = iris.load(input_filename, region_and_stash_cons)
         cubelist_met = rename_cubes(DICT_STASH, cubelist_met)
+        if daily:
+            cubelist_met = calculate_diurnal_t_range(DICT_STASH, cubelist_met)
         # for cube in cubelist_met:
         #    print(cube.long_name)
         output_filename = make_output_file_name(
@@ -461,7 +471,7 @@ def make_initial_conditions(cubelist_dump, lsmask):
     # sort out cpools and npools
     for pool_name in ["ns", "cs"]:
         cube = sortout_initial_cs_and_ns(pool_name, cubelist_init)
-        cubelist_init.append(cube)
+        if cube != None: cubelist_init.append(cube)
 
     # sort out n_inorg only worked for non layered cs
     cubelist_tmp = iris.cube.CubeList([])
@@ -480,13 +490,17 @@ def make_initial_conditions(cubelist_dump, lsmask):
         extract_constraint(["m01s00i216"], REGION_TO_EXTRACT)
     )
     ntiles = cube_frac.coord("pseudo_level").shape[0]
+    cube_snow = cubelist_dump.extract_cube(
+        extract_constraint(["m01s00i381"], REGION_TO_EXTRACT)
+    )
+    nsnow = cube_snow.coord("pseudo_level").shape[0] // ntiles
     cubelist_tmp = iris.cube.CubeList([])
     for cube in cubelist_init:
         all_coord_names = [coord.name() for coord in cube.coords()]
         if "pseudo_level" in all_coord_names:
             if cube.coord("pseudo_level").shape[0] > ntiles:
                 cube = sortout_initial_snow(
-                    cube, NSNOW, cube_frac.coord("pseudo_level")
+                    cube, nsnow, cube_frac.coord("pseudo_level")
                 )
                 cubelist_tmp.append(cube)
             elif cube.coord("pseudo_level").shape[0] == ntiles:
@@ -539,6 +553,7 @@ if __name__ == "__main__":
             END_YEAR,
             MAKE_INIT_ANCIL,
             MAKE_INIT_DUMP,
+            UM_CONFIG,
         ) = read_parameters_from_rose()
 
     print("# #####################################################")
@@ -550,6 +565,7 @@ if __name__ == "__main__":
     print("END_YEAR = " + str(END_YEAR) + " (NB. 1 is all years)")
     print("MAKE_INIT_ANCIL = " + str(MAKE_INIT_ANCIL))
     print("MAKE_INIT_DUMP = " + str(MAKE_INIT_DUMP))
+    print("UM_CONFIG = " + str(UM_CONFIG))
     print("# #####################################################")
 
     if not os.path.exists(f"{PWDUSE}/u-{UM_RUNID}"):
@@ -558,9 +574,17 @@ if __name__ == "__main__":
         if not os.path.exists(f"{PWDUSE}/u-{UM_RUNID}/{subdir}"):
             os.makedirs(f"{PWDUSE}/u-{UM_RUNID}/{subdir}")
 
+    MAKE_DIURNAL_T_RANGE = False
+    if UM_CONFIG.lower() == "ukesm":
+        DRIVING_STREAM="a.pk"
+    elif UM_CONFIG.lower() == "hadgem3_daily":
+        DRIVING_STREAM="a.p6"
+        MAKE_DIURNAL_T_RANGE = True
+
     if not MAKE_INIT_ANCIL and not MAKE_INIT_DUMP:
         for year in range(int(START_YEAR), int(END_YEAR) + 1):
-            make_driving(year)
+            make_driving(year,stream=DRIVING_STREAM,
+                         daily=MAKE_DIURNAL_T_RANGE)
 
     if MAKE_INIT_ANCIL:
         # need to get these filenames from somewhere else and need for population
