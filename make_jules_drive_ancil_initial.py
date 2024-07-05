@@ -18,16 +18,18 @@ from functions_um_to_jules import REGION_DICT
 from functions_um_to_jules import calculate_diurnal_t_range
 import um_to_jules_stash_dict
 
+iris.FUTURE.save_split_attrs = True
+
 L_USE_ROSE = True
 
 if not L_USE_ROSE:
-    UM_RUNID = "dc429"
+    UM_RUNID = "cz375"
     PWDUSE = "/scratch/hadea/um_to_jules/"
     REGION_TO_EXTRACT = "noAntarctica"  # "nhlat" "noAntarctica" "global"
-    UM_DUMPFILENAME = "cz700a.da20990101_00"
+    UM_DUMPFILENAME = "cx209a.da19920101_00"
     START_YEAR = 1
     END_YEAR = 1
-    MAKE_INIT_ANCIL = True
+    MAKE_INIT_ANCIL = False
     MAKE_INIT_DUMP = True
 
 STASHDRIVE = [
@@ -126,6 +128,22 @@ FILE_WITH_ANCIL_PATHS = "ancilpaths.dat"
 
 # ##############################################################################
 def read_parameters_from_rose():
+    """
+    Reads parameters from command line arguments or rose
+    and returns a tuple of parameter values.
+
+    Returns:
+        tuple: A tuple containing the following parameter values:
+            - UM_RUNID (str): The UM_RUNID parameter.
+            - PWDUSE (str): The PWDUSE parameter.
+            - REGION_TO_EXTRACT (str): The REGION_TO_EXTRACT parameter.
+            - UM_DUMPFILENAME (str): The UM_DUMPFILENAME parameter.
+            - START_YEAR (int): The START_YEAR parameter.
+            - END_YEAR (int): The END_YEAR parameter.
+            - MAKE_INIT_ANCIL (bool): The MAKE_INIT_ANCIL parameter.
+            - MAKE_INIT_DUMP (bool): The MAKE_INIT_DUMP parameter.
+    """
+
     # Define parameter names
     parameter_names = [
         "UM_RUNID",
@@ -158,7 +176,7 @@ def read_parameters_from_rose():
     PWDUSE = parameters_dict["PWDUSE"]
     REGION_TO_EXTRACT = parameters_dict["REGION_TO_EXTRACT"]
     UM_DUMPFILENAME = parameters_dict["UM_DUMPFILENAME"]
-    UM_CONFIG = parameters_dict.get("UM_CONFIG","ukesm")
+    UM_CONFIG = parameters_dict.get("UM_CONFIG", "ukesm")
     START_YEAR = parameters_dict.get("START_YEAR", 1)
     END_YEAR = parameters_dict.get("END_YEAR", 1)
     MAKE_INIT_ANCIL_str = parameters_dict.get(
@@ -204,7 +222,18 @@ def read_parameters_from_rose():
 
 
 # ##############################################################################
-def make_prescribed_from_input(um_ancillary_filename):
+def make_prescribed_from_input(um_ancillary_filename, START_YEAR, END_YEAR):
+    """
+    Extracts and saves prescribed data from UM ancillary file based on the specified time range.
+
+    Args:
+        um_ancillary_filename (str): Path to the UM ancillary file.
+        START_YEAR (int): Start year of the time range.
+        END_YEAR (int): End year of the time range.
+
+    Returns:
+        None
+    """
     cubelist = iris.load(um_ancillary_filename)
     stashlist = []
     for cube in cubelist:
@@ -214,6 +243,11 @@ def make_prescribed_from_input(um_ancillary_filename):
     print(cubelist)
     cubelist = rename_cubes(DICT_STASH, cubelist)
     for cube in cubelist:
+        cube = cube.extract(
+            iris.Constraint(
+                time=lambda cell: int(START_YEAR) <= cell.point.year <= int(END_YEAR)
+            )
+        )
         print(cube.var_name)
         iris.save(
             cube,
@@ -223,7 +257,17 @@ def make_prescribed_from_input(um_ancillary_filename):
 
 
 # ##############################################################################
-def make_prescribed_from_output():
+def make_prescribed_from_output(START_YEAR, END_YEAR):
+    """
+    Extracts and saves prescribed data from UM output files for a specified time period.
+
+    Args:
+        START_YEAR (int): The start year of the time period.
+        END_YEAR (int): The end year of the time period.
+
+    Returns:
+        None
+    """
     stream = "a.pm"
     search_pattern = f"{PWDUSE}/u-{UM_RUNID}/{stream}/{UM_RUNID}{stream}*.pp"
     print("files searched: ", search_pattern)
@@ -236,6 +280,11 @@ def make_prescribed_from_output():
     cubelist = rename_cubes(DICT_STASH, cubelist)
     print(cubelist)
     for cube in cubelist:
+        cube = cube.extract(
+            iris.Constraint(
+                time=lambda cell: int(START_YEAR) <= cell.point.year <= int(END_YEAR)
+            )
+        )
         print(cube.var_name)
         # co2_mmr must have the same value everywhere
         if cube.var_name in ["co2_mmr_252"]:
@@ -261,7 +310,7 @@ def make_driving(year, stream="a.pk", daily=False):
         search_pattern = f"{PWDUSE}/u-{UM_RUNID}/{stream}/{UM_RUNID}{stream}*.pp"
     print("files searched: ", search_pattern)
     files = glob.glob(search_pattern)
-    sorted_files = sorted(files) #, key=sort_by_month_year_key)
+    sorted_files = sorted(files)  # , key=sort_by_month_year_key)
     print(sorted_files)
 
     region_and_stash_cons = extract_constraint(STASHDRIVE, REGION_TO_EXTRACT)
@@ -270,8 +319,26 @@ def make_driving(year, stream="a.pk", daily=False):
         print("~~~")
         cubelist_met = iris.load(input_filename, region_and_stash_cons)
         cubelist_met = rename_cubes(DICT_STASH, cubelist_met)
+
+        # need diurnal range
         if daily:
             cubelist_met = calculate_diurnal_t_range(DICT_STASH, cubelist_met)
+
+        # need 4 component precip
+        cube_names = [cube.long_name for cube in cubelist_met]
+        if "ls_rain_4203" not in cube_names:
+            precip_cube = cubelist_met.extract_cube(
+                iris.Constraint(cube_func=(lambda c: c.var_name == "precip_5216"))
+            )
+            snowfall_cube = cubelist_met.extract_cube(
+                iris.Constraint(cube_func=(lambda c: c.var_name == "snowfall_5215"))
+            )
+            con_rain_cube = cubelist_met.extract_cube(
+                iris.Constraint(cube_func=(lambda c: c.var_name == "con_rain_5205"))
+            )
+            cube = precip_cube - snowfall_cube - con_rain_cube
+            cube.var_name = "ls_rain_4203"
+            cubelist_met.append(cube)
         # for cube in cubelist_met:
         #    print(cube.long_name)
         output_filename = make_output_file_name(
@@ -283,7 +350,15 @@ def make_driving(year, stream="a.pk", daily=False):
 
 # ##############################################################################
 def make_topmodel(cubelist_dump):
-    """make topmodel ancillaries"""
+    """
+    Make topmodel ancillaries.
+
+    Args:
+        cubelist_dump (iris.cube.CubeList): The input cubelist.
+
+    Returns:
+        None
+    """
     region_and_stash_cons = extract_constraint(STASHTOP, REGION_TO_EXTRACT)
     cubelist_top = cubelist_dump.extract(region_and_stash_cons)
     cubelist_top = rename_cubes(DICT_STASH, cubelist_top)
@@ -297,7 +372,15 @@ def make_topmodel(cubelist_dump):
 
 # ##############################################################################
 def make_soil(cubelist_dump):
-    """make soil ancillaries"""
+    """
+    Make soil ancillaries.
+
+    Args:
+        cubelist_dump (iris.cube.CubeList): The input cubelist.
+
+    Returns:
+        None
+    """
     region_and_stash_cons = extract_constraint(STASHSOIL, REGION_TO_EXTRACT)
     cubelist_soil = cubelist_dump.extract(region_and_stash_cons)
     cubelist_soil = rename_cubes(DICT_STASH, cubelist_soil)
@@ -311,7 +394,15 @@ def make_soil(cubelist_dump):
 
 # ##############################################################################
 def make_rivers(cubelist_dump):
-    """make rivers ancillaries - not working yet"""
+    """
+    Make rivers ancillaries - not working yet.
+
+    Args:
+        cubelist_dump (iris.cube.CubeList): The input cubelist.
+
+    Returns:
+        None
+    """
     region_and_stash_cons = extract_constraint(STASHRIVERS, REGION_TO_EXTRACT)
     cubelist_rivers = cubelist_dump.extract(region_and_stash_cons)
     cubelist_rivers = rename_cubes(DICT_STASH, cubelist_rivers)
@@ -330,8 +421,13 @@ def make_c2g_lightning(lat2d):
     if 21097 is available use that WE THINK
     but if not use 50082, only need conversion for 50082
          Converts total flashes (#50082) to cloud-to-ground for INFERNO
-    """
 
+    Args:
+        lat2d (numpy.ndarray): 2D array of latitudes.
+
+    Returns:
+        None
+    """
     stream = "a.pm"
     search_pattern = f"{PWDUSE}/u-{UM_RUNID}/{stream}/{UM_RUNID}{stream}*.pp"
     print("files searched: ", search_pattern)
@@ -360,11 +456,7 @@ def make_c2g_lightning(lat2d):
             + 7.34
         )
         az = (
-            0.021 * (adh**4)
-            - 0.648 * (adh**3)
-            + 7.493 * (adh**2)
-            - 36.54 * adh
-            + 63.09
+            0.021 * (adh**4) - 0.648 * (adh**3) + 7.493 * (adh**2) - 36.54 * adh + 63.09
         )
         ap = 1.0 / (1.0 + az)
         cube.data = cube.data * ap
@@ -471,7 +563,8 @@ def make_initial_conditions(cubelist_dump, lsmask):
     # sort out cpools and npools
     for pool_name in ["ns", "cs"]:
         cube = sortout_initial_cs_and_ns(pool_name, cubelist_init)
-        if cube != None: cubelist_init.append(cube)
+        if cube != None:
+            cubelist_init.append(cube)
 
     # sort out n_inorg only worked for non layered cs
     cubelist_tmp = iris.cube.CubeList([])
@@ -543,7 +636,9 @@ if __name__ == "__main__":
     """run main routine"""
 
     if L_USE_ROSE:
-        # python make_jules_drive_ancil_initial.py UM_RUNID=dc429 PWDUSE=/scratch/hadea/um_to_jules REGION_TO_EXTRACT=noAntarctica UM_DUMPFILENAMEcz700a.da20990101_00
+        # python make_jules_drive_ancil_initial.py UM_RUNID=dc429 PWDUSE=/scratch/hadea/um_to_jules
+        # REGION_TO_EXTRACT=noAntarctica  UM_DUMPFILENAME=cz700a.da20990101_00
+        # START_YEAR=1850 END_YEAR=2015 MAKE_INIT_ANCIL=True MAKE_INIT_DUMP=False
         (
             UM_RUNID,
             PWDUSE,
@@ -576,15 +671,14 @@ if __name__ == "__main__":
 
     MAKE_DIURNAL_T_RANGE = False
     if UM_CONFIG.lower() == "ukesm":
-        DRIVING_STREAM="a.pk"
+        DRIVING_STREAM = "a.pk"
     elif UM_CONFIG.lower() == "hadgem3_daily":
-        DRIVING_STREAM="a.p6"
+        DRIVING_STREAM = "a.p6"
         MAKE_DIURNAL_T_RANGE = True
 
     if not MAKE_INIT_ANCIL and not MAKE_INIT_DUMP:
         for year in range(int(START_YEAR), int(END_YEAR) + 1):
-            make_driving(year,stream=DRIVING_STREAM,
-                         daily=MAKE_DIURNAL_T_RANGE)
+            make_driving(year, stream=DRIVING_STREAM, daily=MAKE_DIURNAL_T_RANGE)
 
     if MAKE_INIT_ANCIL:
         # need to get these filenames from somewhere else and need for population
@@ -597,14 +691,14 @@ if __name__ == "__main__":
                     filename = (
                         filename.strip()
                     )  # Remove leading/trailing whitespace and newlines
-                    make_prescribed_from_input(filename)
+                    make_prescribed_from_input(filename, START_YEAR, END_YEAR)
         else:
             print("Expecting file ancilpaths.dat in current directory")
             print("It either doesnt exist or has no filenames")
             print("There are no prescribed datasets derived from UM input data")
 
         # from monthly output from UM run
-        make_prescribed_from_output()
+        make_prescribed_from_output(START_YEAR, END_YEAR)
 
     if MAKE_INIT_DUMP:
         cubelist_dump = iris.load(f"{PWDUSE}/u-{UM_RUNID}/a.da/{UM_DUMPFILENAME}")

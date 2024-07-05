@@ -1,4 +1,5 @@
 """ fucntions for extracting um data"""
+
 import iris
 import os
 import numpy as np
@@ -159,18 +160,26 @@ def make_output_file_name(input_filename, REGION_TO_EXTRACT, PWDOUT, UM_RUNID):
 # ############################################################
 def calculate_diurnal_t_range(DICT_STASH, cubelist):
     """calculate the diurnal temperature range
-       required by JULES if using the daily dissagregator 
-       with daily driving data"""
+    required by JULES if using the daily dissagregator
+    with daily driving data"""
 
-    for stash in ["m01s03i236","m01s30i111"]: #possible temperature stash codes
+    for stash in ["m01s03i236", "m01s30i111"]:  # possible temperature stash codes
         stash_int = stash_string_to_integer(stash)
         try:
-            tmin = cubelist.extract_cube(iris.Constraint(cube_func=lambda x: x.long_name == \
-                                                         DICT_STASH[stash]["name"] + "_MIN_" + str(stash_int) ))
+            tmin = cubelist.extract_cube(
+                iris.Constraint(
+                    cube_func=lambda x: x.long_name
+                    == DICT_STASH[stash]["name"] + "_MIN_" + str(stash_int)
+                )
+            )
         except:
             continue
-        tmax = cubelist.extract_cube(iris.Constraint(cube_func=lambda x: x.long_name == \
-                                                     DICT_STASH[stash]["name"] + "_MAX_" + str(stash_int) ))
+        tmax = cubelist.extract_cube(
+            iris.Constraint(
+                cube_func=lambda x: x.long_name
+                == DICT_STASH[stash]["name"] + "_MAX_" + str(stash_int)
+            )
+        )
         dt = tmax - tmin
         dt.long_name = DICT_STASH[stash]["name"] + "_DIURNAL_RANGE_" + str(stash_int)
         dt.var_name = dt.long_name
@@ -187,15 +196,27 @@ def rename_cubes(DICT_STASH, cubelist):
             if "STASH" in cube.attributes.keys():
                 stash_int = stash_string_to_integer(str(cube.attributes["STASH"]))
 
-#            print(cube.cell_methods)
-#            print(len(cube.cell_methods))
+            #            print(cube.cell_methods)
+            #            print(len(cube.cell_methods))
             if len(cube.cell_methods) > 0:
                 if cube.cell_methods[0].method == "minimum":
-                    cube.long_name = DICT_STASH[str(cube.attributes["STASH"])]["name"] + "_MIN_" + str(stash_int)
+                    cube.long_name = (
+                        DICT_STASH[str(cube.attributes["STASH"])]["name"]
+                        + "_MIN_"
+                        + str(stash_int)
+                    )
                 elif cube.cell_methods[0].method == "maximum":
-                    cube.long_name = DICT_STASH[str(cube.attributes["STASH"])]["name"] + "_MAX_" + str(stash_int)
+                    cube.long_name = (
+                        DICT_STASH[str(cube.attributes["STASH"])]["name"]
+                        + "_MAX_"
+                        + str(stash_int)
+                    )
             else:
-                cube.long_name = DICT_STASH[str(cube.attributes["STASH"])]["name"] + "_" + str(stash_int)
+                cube.long_name = (
+                    DICT_STASH[str(cube.attributes["STASH"])]["name"]
+                    + "_"
+                    + str(stash_int)
+                )
 
             cube.units = DICT_STASH[str(cube.attributes["STASH"])]["units"]
             cube.standard_name = None
@@ -229,7 +250,7 @@ def reorder_pseudo_type(cube):
     for ijk in np.arange(0, ntypes):
         cube_tmp = cube[ijk].copy()
         cube_tmp.coord("pseudo_level").points = [
-            mapping_pseudo_type_to_type.get(cube_tmp.coord("pseudo_level").points[0])
+            mapping_pseudo_type_to_type.get(cube.coord("pseudo_level").points[ijk])
         ]
         cubelist.append(cube_tmp)
     cube = cubelist.merge_cube()
