@@ -18,7 +18,6 @@ from functions_um_to_jules import REGION_DICT
 from functions_um_to_jules import calculate_diurnal_t_range
 import um_to_jules_stash_dict
 
-iris.FUTURE.save_split_attrs = True
 
 L_USE_ROSE = True
 
