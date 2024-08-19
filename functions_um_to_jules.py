@@ -211,6 +211,12 @@ def rename_cubes(DICT_STASH, cubelist):
                         + "_MAX_"
                         + str(stash_int)
                     )
+                elif cube.cell_methods[0].method == "mean":
+                    cube.long_name = (
+                        DICT_STASH[str(cube.attributes["STASH"])]["name"]
+                        + "_"
+                        + str(stash_int)
+                    )
             else:
                 cube.long_name = (
                     DICT_STASH[str(cube.attributes["STASH"])]["name"]

@@ -30,6 +30,7 @@ if not L_USE_ROSE:
     END_YEAR = 1
     MAKE_INIT_ANCIL = False
     MAKE_INIT_DUMP = True
+    UM_CONFIG = "ukesm"
 
 STASHDRIVE = [
     "m01s00i010",
