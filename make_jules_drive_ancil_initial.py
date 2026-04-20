@@ -706,11 +706,28 @@ if __name__ == "__main__":
         make_prescribed_from_output(START_YEAR, END_YEAR)
 
     if MAKE_INIT_DUMP:
-        cubelist_dump = iris.load(f"{PWDUSE}/u-{UM_RUNID}/a.da/{UM_DUMPFILENAME}")
-        make_topmodel(cubelist_dump)
-        make_rivers(cubelist_dump)
-        make_soil(cubelist_dump)
-        make_model_height(cubelist_dump)
+        dumpfilename = f"{PWDUSE}/u-{UM_RUNID}/a.da/{UM_DUMPFILENAME}"
+        try:
+            cubelist_dump = iris.load(dumpfilename)
+        except Exception as e:
+            print(f"[WARNING]: Failed to load dump file: {dumpfilename}")
+            print(f"[WARNING]: Failed to load dump file: {e}")
+            print(f"[WARNING]: Attempting to load preprocessed dump file: {dumpfilename}.pp")
+            try :
+                if not os.path.exists(f"{dumpfilename}.pp"):
+                    print(f"[WARNING]: Preprocessed dump file does not exist: {dumpfilename}.pp")
+                    print(f"[WARNING]: Run: module load um_tools; mule-convpp filename_fields filename_pp.")
+                else:
+                    cubelist_dump = iris.load(f"{dumpfilename}.pp")
+            except Exception as e:
+                print(f"[ERROR]: Failed to load preprocessed dump file: {dumpfilename}.pp")
+                raise RuntimeError(f"[ERROR]: Failed to load preprocessed dump file: {dumpfilename}.pp") from e
+
+        if cubelist_dump is not None:
+            make_topmodel(cubelist_dump)
+            make_rivers(cubelist_dump)
+            make_soil(cubelist_dump)
+            make_model_height(cubelist_dump)
         lsmask, lat2d = make_model_grid(cubelist_dump)
         # lat2d = iris.load_cube("/scratch/hadea/um_to_jules/dc429/ancils/dc429_noAntarctica_model_grid.nc","lat2d")
         make_c2g_lightning(lat2d)
