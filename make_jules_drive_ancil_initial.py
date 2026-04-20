@@ -248,11 +248,16 @@ def make_prescribed_from_input(um_ancillary_filename, START_YEAR, END_YEAR):
                 time=lambda cell: int(START_YEAR) <= cell.point.year <= int(END_YEAR)
             )
         )
-        print(cube.var_name)
-        iris.save(
-            cube,
-            f"{PWDUSE}/u-{UM_RUNID}/ancils/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_{cube.var_name}.nc",
-        )
+        if cube is not None:
+            print(f"[INFO]: Processing variable {cube.var_name}")
+            iris.save(
+                cube,
+                f"{PWDUSE}/u-{UM_RUNID}/ancils/{UM_RUNID}_{REGION_DICT[REGION_TO_EXTRACT]['string']}_{cube.var_name}.nc",
+            )
+        else: 
+            print(
+                f"[WARNING]: No data found for variable from {cubelist} in the specified time range."
+            )
     return
 
 
