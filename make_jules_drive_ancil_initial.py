@@ -712,22 +712,21 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"[WARNING]: Failed to load dump file: {dumpfilename}")
             print(f"[WARNING]: Failed to load dump file: {e}")
-            print(f"[WARNING]: Attempting to load preprocessed dump file: {dumpfilename}.pp")
+            print(f"[WARNING]: Attempting to load preprocessed dump file: {dumpfilename}.nc")
             try :
-                if not os.path.exists(f"{dumpfilename}.pp"):
-                    print(f"[WARNING]: Preprocessed dump file does not exist: {dumpfilename}.pp")
-                    print(f"[WARNING]: Run: module load um_tools; mule-convpp filename_fields filename_pp.")
+                if not os.path.exists(f"{dumpfilename}.nc"):
+                    print(f"[WARNING]: Preprocessed dump file does not exist: {dumpfilename}.nc")
+                    raise RuntimeError(f"[WARNING]: Run: fix_um_dump_read.py")
                 else:
-                    cubelist_dump = iris.load(f"{dumpfilename}.pp")
+                    cubelist_dump = iris.load(f"{dumpfilename}.nc")
             except Exception as e:
-                print(f"[ERROR]: Failed to load preprocessed dump file: {dumpfilename}.pp")
-                raise RuntimeError(f"[ERROR]: Failed to load preprocessed dump file: {dumpfilename}.pp") from e
+                print(f"[ERROR]: Failed to load preprocessed dump file: {dumpfilename}.nc")
+                raise RuntimeError(f"[ERROR]: Failed to load preprocessed dump file: {dumpfilename}.nc") from e
 
-        if cubelist_dump is not None:
-            make_topmodel(cubelist_dump)
-            make_rivers(cubelist_dump)
-            make_soil(cubelist_dump)
-            make_model_height(cubelist_dump)
+        make_topmodel(cubelist_dump)
+        make_rivers(cubelist_dump)
+        make_soil(cubelist_dump)
+        make_model_height(cubelist_dump)
         lsmask, lat2d = make_model_grid(cubelist_dump)
         # lat2d = iris.load_cube("/scratch/hadea/um_to_jules/dc429/ancils/dc429_noAntarctica_model_grid.nc","lat2d")
         make_c2g_lightning(lat2d)
