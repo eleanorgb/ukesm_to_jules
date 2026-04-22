@@ -724,7 +724,12 @@ if __name__ == "__main__":
                 raise RuntimeError(f"[ERROR]: Failed to load preprocessed dump file: {dumpfilename}.nc") from e
 
         make_topmodel(cubelist_dump)
-        make_rivers(cubelist_dump)
+        try:
+            make_rivers(cubelist_dump)
+        except Exception as e:
+            print(f"[WARNING]: Failed to make rivers ancillary: {e}")
+            print(f"[WARNING]: This is likely due to missing river data in the dump file.")
+            print(f"[WARNING]: Proceeding without rivers ancillary.")
         make_soil(cubelist_dump)
         make_model_height(cubelist_dump)
         lsmask, lat2d = make_model_grid(cubelist_dump)

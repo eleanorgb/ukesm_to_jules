@@ -143,6 +143,52 @@ for stash_name in sorted(stash_names):
 raw_cubes = merged_by_stash
 print(f"Prepared {len(raw_cubes)} cubes after per-STASH merging.")
 
+# Keep only cubes whose latitude length matches STASH m01s00i040.
+reference_cube = next(
+    (cube for cube in raw_cubes if str(cube.attributes.get("STASH")) == "m01s00i040"),
+    None,
+)
+
+if reference_cube is not None:
+    ref_lat_coord = next(
+        (
+            coord
+            for coord in reference_cube.coords()
+            if coord.name() == "latitude" or (coord.name() and "latitude" in coord.name())
+        ),
+        None,
+    )
+
+    if ref_lat_coord is not None:
+        ref_lat_len = len(ref_lat_coord.points)
+        filtered_cubes = CubeList([])
+        removed_cubes = 0
+
+        for cube in raw_cubes:
+            cube_lat_coord = next(
+                (
+                    coord
+                    for coord in cube.coords()
+                    if coord.name() == "latitude" or (coord.name() and "latitude" in coord.name())
+                ),
+                None,
+            )
+
+            if cube_lat_coord is None or len(cube_lat_coord.points) != ref_lat_len:
+                removed_cubes += 1
+                continue
+
+            filtered_cubes.append(cube)
+
+        raw_cubes = filtered_cubes
+        print(
+            f"Filtered cubes by latitude length {ref_lat_len} from m01s00i040; removed {removed_cubes} cubes."
+        )
+    else:
+        print("m01s00i040 found but has no latitude coordinate; skipped latitude-length filtering.")
+else:
+    print("m01s00i040 not found; skipped latitude-length filtering.")
+
 # N.B. we now have "raw cubes" (including an orography cube)
 #  - use a merge operation to replicate what a plain "iris.load" would do.
 # print(raw_cubes)
@@ -153,7 +199,9 @@ cubes = CubeList([
     cube for cube in cubes
     if not any(cube.coords(c) for c in ("forecast_period_0", "forecast_period", "forecast_period_1"))
 ])
-print(cubes)
+
+print("[WARNING] rivers ancillary won't be generated here")
+
 iris.save(
     cubes,
     "/data/users/eleanor.burke/um_to_jules/u-cy838/a.da/cy838a.da19500101_00.sel.nc",
@@ -162,6 +210,3 @@ iris.save(
 # Show results
 print(f"Merged {len(raw_cubes)} -> {len(cubes)} cubes :")
 print(cubes)
-# Show one cube, which has model-levels + orography
-print("\nExample result cube :")
-print(cubes.extract_cube("air_potential_temperature"))
