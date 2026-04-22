@@ -245,10 +245,13 @@ def rename_cubes(DICT_STASH, cubelist):
 
         name_list = [cube.name() for cube in cubelist]
         if len(set(name_list)) != len(name_list):
-            print(name_list)
-            raise Exception(
-                "check this case: may need to do some merging/concatenating"
-            )
+            if 'theta_4' in name_list:
+                name_list = ['theta_4']
+            else:
+                print(name_list)
+                raise Exception(
+                    "check this case: may need to do some merging/concatenating"
+                )
     else:
         if "STASH" in cubelist.attributes.keys():
             stash_int = stash_string_to_integer(str(cubelist.attributes["STASH"]))
@@ -267,6 +270,8 @@ def reorder_pseudo_type(cube):
     """"""
     cubelist = iris.cube.CubeList([])
     ntypes = len(cube.coord("pseudo_level").points)
+    if ntypes > 27:
+        ntypes =27
     mapping_pseudo_type_to_type = define_mapping_pseudo_type_to_type(ntypes)
     for ijk in np.arange(0, ntypes):
         cube_tmp = cube[ijk].copy()
