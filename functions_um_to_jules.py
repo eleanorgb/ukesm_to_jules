@@ -142,6 +142,21 @@ def stash_string_to_integer(stash_string=None):
 
 
 # ############################################################
+def stash_integer_to_string(stash_integer=None):
+    """e.g. 16222 to m01s16i222. Copied from myutils.py@8221"""
+
+    if stash_integer > 9999999 or stash_integer <= 0:
+        raise Exception("something wrong here")
+
+    number_string = "%07d" % (stash_integer + 100000)
+    stash_string = (
+        "m" + number_string[0:2] + "s" + number_string[2:4] + "i" + number_string[4:7]
+    )
+
+    return stash_string
+
+
+# ############################################################
 def make_output_file_name(input_filename, REGION_TO_EXTRACT, PWDOUT, UM_RUNID):
     output_filename = (
         PWDOUT
